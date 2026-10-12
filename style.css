@@ -853,3 +853,68 @@ canvas {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* CORREÇÃO DOS CAMPOS DE TEMPO — LYRIC STUDIO */
+
+#listaLegendas .lyric-row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    min-width: 0;
+}
+
+#listaLegendas .lyric-text {
+    display: block;
+    color: var(--texto, #ffffff);
+    overflow-wrap: anywhere;
+}
+
+#listaLegendas .time-fields {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+}
+
+#listaLegendas .time-fields label {
+    display: flex !important;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: var(--texto, #ffffff);
+    font-size: 13px;
+}
+
+#listaLegendas .time-fields input {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100% !important;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 12px 8px;
+    border: 1px solid #64748b;
+    border-radius: 8px;
+    background: #1e293b !important;
+    color: #ffffff !important;
+    font-size: 16px !important;
+    line-height: 1.4;
+}
+
+#listaLegendas .time-fields input:focus {
+    outline: 2px solid #80f2b5;
+    outline-offset: 1px;
+}
+
+#listaLegendas .lyric-row button {
+    display: block;
+    width: 100%;
+}
+
+@media (max-width: 480px) {
+    #listaLegendas .time-fields {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
