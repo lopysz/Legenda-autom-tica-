@@ -1,125 +1,163 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101614">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lyric Studio</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand"><div class="brand-mark">♪</div><div><strong>Lyric Studio</strong><small>Editor de letras</small></div></div>
-      <div class="side-label">PROJETO</div>
-      <button class="nav-item active" type="button" data-section="editor">▤ <span>Editor</span></button>
-      <button class="nav-item" type="button" data-section="legendas">≡ <span>Legendas</span></button>
-      <div class="side-note">
-        <strong>Fluxo de trabalho</strong>
-        <p>1. Carregue a música<br>2. Importe um SRT/VTT<br>3. Confira a sincronia<br>4. Exporte o vídeo</p>
+  <header class="topbar">
+    <div>
+      <h1>Lyric Studio</h1>
+      <p>Editor de vídeos musicais</p>
+    </div>
+    <span class="status">EDITOR LOCAL</span>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>01. Música</h2>
+
+      <label class="file-label" for="arquivoAudio">
+        <span>♫</span>
+        <strong>Importar música</strong>
+        <small>Selecione um arquivo de áudio</small>
+      </label>
+      <input id="arquivoAudio" type="file"
+             accept="audio/*" hidden>
+
+      <p id="nomeAudio" class="muted">Nenhum áudio selecionado</p>
+
+      <audio id="audio" preload="metadata"></audio>
+
+      <div class="audio-controls">
+        <button id="voltar" class="secondary">−5 s</button>
+        <button id="playPause" class="primary">▶ Reproduzir</button>
+        <button id="avancar" class="secondary">+5 s</button>
       </div>
-      <div class="sidebar-footer">Processamento no navegador</div>
-    </aside>
 
-    <main class="main">
-      <header class="topbar">
-        <div><h1>Editor de vídeo com letras</h1><p>Importe legendas sincronizadas e transforme-as em um vídeo.</p></div>
-        <span class="status-pill" id="statusGeral">Pronto para começar</span>
-      </header>
+      <div class="time-row">
+        <span id="tempoAtual">00:00</span>
+        <span id="duracao">00:00</span>
+      </div>
 
-      <section class="workspace" id="section-editor">
-        <div class="left-column">
-          <section class="panel">
-            <div class="panel-heading"><div><h2>1. Áudio</h2><p>Escolha a música que vai acompanhar as legendas.</p></div></div>
-            <label class="file-drop" for="audioFile">
-              <span class="file-icon">♫</span><strong>Selecionar arquivo de áudio</strong>
-              <span>MP3, WAV, OGG ou outro formato compatível com o navegador</span>
-              <input type="file" id="audioFile" accept="audio/*">
-            </label>
-            <div class="audio-name" id="audioName">Nenhum áudio selecionado</div>
-            <audio id="audio" controls preload="metadata"></audio>
-          </section>
+      <input id="seek" type="range"
+             min="0" max="100" value="0" step="0.1">
 
-          <section class="panel">
-            <div class="panel-heading"><div><h2>2. Legendas sincronizadas</h2><p>Importe o arquivo exportado pelo serviço de transcrição.</p></div></div>
-            <label class="file-drop compact" for="subtitleFile">
-              <span class="file-icon">↥</span><strong>Importar arquivo .SRT ou .VTT</strong>
-              <span>Os horários existentes no arquivo serão preservados.</span>
-              <input type="file" id="subtitleFile" accept=".srt,.vtt,text/vtt,application/x-subrip">
-            </label>
-            <div class="button-row">
-              <button class="btn primary" id="importSubtitles" type="button">Importar e sincronizar</button>
-              <button class="btn secondary" id="clearSubtitles" type="button">Limpar legendas</button>
-            </div>
-            <p class="hint" id="importStatus" aria-live="polite">Nenhum arquivo de legenda importado.</p>
-            <div class="manual-entry">
-              <label for="manualLyrics">Ou cole a letra manualmente (uma frase por linha)</label>
-              <textarea id="manualLyrics" rows="4" placeholder="Cole aqui a letra da música..."></textarea>
-              <button class="btn secondary" id="createManual" type="button">Criar legendas sem tempo</button>
-              <p class="hint">As legendas criadas manualmente começam sem sincronização automática. Defina os tempos na tabela abaixo.</p>
-            </div>
-          </section>
+      <h2>02. Letra</h2>
+      <p class="muted">
+        Cole a letra abaixo. Use uma linha para cada trecho.
+      </p>
 
-          <section class="panel">
-            <div class="panel-heading"><div><h2>3. Aparência</h2><p>Personalize o texto e o formato do vídeo.</p></div></div>
-            <div class="settings-grid">
-              <label>Formato
-                <select id="videoFormat"><option value="vertical">Vertical · 9:16</option><option value="horizontal">Horizontal · 16:9</option><option value="square">Quadrado · 1:1</option></select>
-              </label>
-              <label>Fundo
-                <select id="backgroundStyle"><option value="gradient">Degradê escuro</option><option value="black">Preto</option><option value="image">Imagem de fundo</option></select>
-              </label>
-              <label>Cor da letra <input type="color" id="textColor" value="#ffffff"></label>
-              <label>Cor de destaque <input type="color" id="highlightColor" value="#a8f0c6"></label>
-              <label>Tamanho do texto <input type="range" id="fontSize" min="18" max="64" value="34"><span class="range-value" id="fontSizeValue">34 px</span></label>
-              <label>Posição vertical
-                <select id="textPosition"><option value="center">Centro</option><option value="bottom">Parte inferior</option><option value="top">Parte superior</option></select>
-              </label>
-              <label class="full-width">Imagem de fundo (opcional)
-                <input type="file" id="backgroundImage" accept="image/*">
-              </label>
-            </div>
-          </section>
+      <textarea id="letra" rows="8"
+        placeholder="Primeira linha da música&#10;Segunda linha da música&#10;Terceira linha da música"></textarea>
+
+      <button id="criarLinhas" class="primary full">
+        Criar linhas da legenda
+      </button>
+
+      <div class="sync-box">
+        <label for="linhaSelecionada">Linha para sincronizar</label>
+        <select id="linhaSelecionada">
+          <option value="">Crie as linhas primeiro</option>
+        </select>
+
+        <button id="marcarTempo" class="primary full">
+          Marcar início no tempo atual
+        </button>
+
+        <p class="muted">
+          Reproduza a música e marque cada linha quando ela começar.
+        </p>
+      </div>
+
+      <h2>03. Legendas sincronizadas</h2>
+      <div id="listaLegendas" class="lyrics-list">
+        <p class="muted">As linhas aparecerão aqui.</p>
+      </div>
+
+      <h2>04. Aparência do vídeo</h2>
+
+      <label for="formato">Formato</label>
+      <select id="formato">
+        <option value="vertical">Vertical — 9:16</option>
+        <option value="horizontal">Horizontal — 16:9</option>
+      </select>
+
+      <div class="color-grid">
+        <div>
+          <label for="corFundo">Fundo</label>
+          <input id="corFundo" type="color" value="#101014">
         </div>
-
-        <div class="right-column">
-          <section class="panel preview-panel">
-            <div class="panel-heading"><div><h2>Prévia</h2><p>Visualização aproximada do vídeo.</p></div><span class="live-dot">AO VIVO</span></div>
-            <div class="preview-stage">
-              <canvas id="previewCanvas" width="720" height="1280"></canvas>
-            </div>
-            <div class="player-controls">
-              <button class="btn secondary" id="playPreview" type="button">▶ Reproduzir</button>
-              <span id="currentTime">00:00.0</span>
-              <input type="range" id="seekBar" min="0" max="100" value="0" step="0.1" aria-label="Posição da música">
-              <span id="duration">00:00.0</span>
-            </div>
-            <p class="hint">A prévia acompanha o áudio e as marcações de tempo importadas.</p>
-          </section>
-
-          <section class="panel">
-            <div class="panel-heading"><div><h2>Exportar vídeo</h2><p>Grava a prévia com o áudio no formato selecionado.</p></div></div>
-            <div class="export-info"><span>Formato do arquivo</span><strong>WebM</strong><small>O suporte depende do navegador. Se necessário, converta depois para MP4.</small></div>
-            <button class="btn primary full" id="exportVideo" type="button">● Exportar vídeo</button>
-            <button class="btn danger full hidden" id="stopExport" type="button">Parar exportação</button>
-            <p class="hint" id="exportStatus" aria-live="polite">Carregue um áudio antes de exportar.</p>
-          </section>
+        <div>
+          <label for="corTexto">Texto</label>
+          <input id="corTexto" type="color" value="#ffffff">
         </div>
-      </section>
-
-      <section class="panel subtitles-panel" id="section-legendas">
-        <div class="panel-heading"><div><h2>Legendas e tempos</h2><p>Edite os textos e os horários de início e fim de cada trecho.</p></div><span id="subtitleCount" class="count-badge">0 trechos</span></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>#</th><th>Texto</th><th>Início (segundos)</th><th>Fim (segundos)</th><th>Ação</th></tr></thead>
-            <tbody id="subtitleTable"><tr><td colspan="5" class="empty-cell">Importe um arquivo SRT/VTT ou crie legendas manualmente.</td></tr></tbody>
-          </table>
+        <div>
+          <label for="corDestaque">Destaque</label>
+          <input id="corDestaque" type="color" value="#7cf0b1">
         </div>
-        <div class="button-row bottom-actions"><button class="btn secondary" id="downloadSrt" type="button">Baixar legendas .SRT</button><button class="btn secondary" id="downloadVtt" type="button">Baixar legendas .VTT</button></div>
-      </section>
-      <footer>Lyric Studio · Seus arquivos são processados localmente nesta página.</footer>
-    </main>
-  </div>
+      </div>
+
+      <label for="tamanhoTexto">
+        Tamanho da letra: <span id="valorTamanho">48</span> px
+      </label>
+      <input id="tamanhoTexto" type="range"
+             min="24" max="84" value="48">
+
+      <label for="posicaoTexto">Posição da legenda</label>
+      <select id="posicaoTexto">
+        <option value="center">Centro</option>
+        <option value="bottom">Parte inferior</option>
+        <option value="top">Parte superior</option>
+      </select>
+
+      <label class="check-row">
+        <input id="mostrarAudio" type="checkbox" checked>
+        Mostrar visualizador de áudio
+      </label>
+
+      <h2>05. Exportar</h2>
+      <p class="muted">
+        A exportação grava o vídeo e o áudio em tempo real.
+        Para gravar a música inteira, aguarde o término.
+      </p>
+
+      <button id="exportar" class="export-button full">
+        ● Exportar vídeo completo
+      </button>
+
+      <button id="pararExportacao"
+              class="secondary full" disabled>
+        Parar exportação
+      </button>
+
+      <p id="mensagem" role="status" aria-live="polite">
+        Pronto para começar.
+      </p>
+    </section>
+
+    <section class="preview-panel">
+      <div class="preview-heading">
+        <div>
+          <h2>Prévia do vídeo</h2>
+          <p class="muted">Acompanhe a letra em tempo real.</p>
+        </div>
+        <span id="resolucao">720 × 1280</span>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="canvas" width="720" height="1280"></canvas>
+      </div>
+
+      <p class="muted preview-note">
+        A prévia mostra o resultado que será gravado.
+      </p>
+    </section>
+  </main>
+
   <script src="script.js"></script>
 </body>
 </html>
