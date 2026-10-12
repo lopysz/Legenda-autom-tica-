@@ -24,7 +24,12 @@ let exportando = false;
 let animacao = null;
 let audioAnterior = null;
 
-const fmt = segundos => {
+/* =========================================================
+   FORMATAÇÃO E LEITURA DOS TEMPOS
+========================================================= */
+
+// Exibição do relógio da música: 01:23
+function fmt(segundos) {
     if (!Number.isFinite(segundos)) return "00:00";
 
     const s = Math.max(0, Math.floor(segundos));
@@ -32,7 +37,64 @@ const fmt = segundos => {
     return String(Math.floor(s / 60)).padStart(2, "0")
         + ":"
         + String(s % 60).padStart(2, "0");
-};
+}
+
+// Exibição dos campos de legenda: 01:23.5
+function fmtTempo(segundos) {
+    if (!Number.isFinite(segundos)) return "00:00.0";
+
+    segundos = Math.max(0, segundos);
+
+    const minutos = Math.floor(segundos / 60);
+    const resto = segundos - minutos * 60;
+
+    return String(minutos).padStart(2, "0")
+        + ":"
+        + resto.toFixed(1).padStart(4, "0");
+}
+
+// Converte tanto 01:23.5 quanto 83.5 em segundos.
+// Também aceita vírgula decimal: 01:23,5 ou 83,5.
+function lerTempo(valor) {
+    if (typeof valor !== "string" && typeof valor !== "number") {
+        return null;
+    }
+
+    const texto = String(valor).trim().replace(",", ".");
+
+    if (!texto) return null;
+
+    if (texto.includes(":")) {
+        const partes = texto.split(":");
+
+        if (partes.length !== 2) return null;
+
+        const minutosTexto = partes[0];
+        const segundosTexto = partes[1];
+
+        if (!/^\d+$/.test(minutosTexto)) return null;
+        if (!/^\d{1,2}(?:\.\d+)?$/.test(segundosTexto)) {
+            return null;
+        }
+
+        const minutos = Number(minutosTexto);
+        const segundos = Number(segundosTexto);
+
+        if (!Number.isFinite(minutos) ||
+            !Number.isFinite(segundos) ||
+            segundos >= 60) {
+            return null;
+        }
+
+        return minutos * 60 + segundos;
+    }
+
+    if (!/^\d+(?:\.\d+)?$/.test(texto)) return null;
+
+    const segundos = Number(texto);
+
+    return Number.isFinite(segundos) ? segundos : null;
+}
 
 function mensagem(texto) {
     $("mensagem").textContent = texto;
@@ -42,48 +104,63 @@ function mensagem(texto) {
    SINCRONIZAÇÃO DAS LEGENDAS
 ========================================================= */
 
-// Organiza os finais de cada linha com base no início
-// da próxima linha, mantendo a ordem original da letra.
+// Mantém os tempos válidos sem sobrescrever os finais
+// que o usuário editou manualmente.
 
 function recalcularFins() {
     legendas.sort((a, b) => a.index - b.index);
 
-    legendas.forEach((item, i) => {
-        const proxima = legendas[i + 1];
+    const duracao = Number.isFinite(audio.duration) &&
+        audio.duration > 0
+        ? audio.duration
+        : Infinity;
 
-        if (proxima) {
-            item.fim = Math.max(item.inicio, proxima.inicio);
-        } else if (Number.isFinite(audio.duration) &&
-                   audio.duration > item.inicio) {
-            item.fim = audio.duration;
-        } else {
-            item.fim = Math.max(item.fim, item.inicio + 0.1);
-        }
+    legendas.forEach(item => {
+        item.inicio = Math.max(0, Math.min(item.inicio, duracao));
+        item.fim = Math.max(
+            item.inicio,
+            Math.min(item.fim, duracao)
+        );
     });
 }
 
-// Quando o início de uma linha muda, todas as linhas
-// seguintes acompanham a mesma diferença de tempo.
+// Alterar o início desloca o final da própria linha
+// e os horários das linhas seguintes pela mesma diferença.
 
 function alterarInicio(index, novoInicio) {
     const item = legendas.find(l => l.index === index);
 
     if (!item) return;
 
-    novoInicio = Math.max(0, Number(novoInicio) || 0);
+    const tempo = lerTempo(novoInicio);
+
+    if (tempo === null) {
+        desenharLista();
+        mensagem("Tempo inválido. Use, por exemplo, 01:23.5.");
+        return;
+    }
+
+    const duracao = Number.isFinite(audio.duration) &&
+        audio.duration > 0
+        ? audio.duration
+        : Infinity;
+
+    novoInicio = Math.max(0, Math.min(tempo, duracao));
 
     const diferenca = novoInicio - item.inicio;
 
-    if (Math.abs(diferenca) < 0.001) return;
+    if (Math.abs(diferenca) < 0.001) {
+        desenharLista();
+        return;
+    }
 
     item.inicio = novoInicio;
-
-    // Desloca os versos seguintes, preservando os espaços
-    // entre eles e evitando sobreposição por causa do ajuste.
+    item.fim = Math.max(item.inicio, item.fim + diferenca);
 
     legendas.forEach(l => {
         if (l.index > index) {
             l.inicio = Math.max(0, l.inicio + diferenca);
+            l.fim = Math.max(l.inicio, l.fim + diferenca);
         }
     });
 
@@ -91,47 +168,62 @@ function alterarInicio(index, novoInicio) {
     desenharLista();
 
     mensagem(
-        "Sincronização atualizada. As linhas seguintes foram ajustadas."
+        "Início atualizado. Os horários seguintes foram ajustados."
     );
 }
 
-// Quando o usuário muda o fim de uma linha, o início
-// da próxima linha acompanha o novo tempo. As demais
-// também se deslocam para manter os intervalos.
+// Alterar o final desloca as linhas seguintes pela diferença.
+// Quando as linhas eram consecutivas, o início da próxima
+// acompanhará exatamente o novo final.
 
 function alterarFim(index, novoFim) {
     const item = legendas.find(l => l.index === index);
 
     if (!item) return;
 
-    novoFim = Math.max(item.inicio, Number(novoFim) || 0);
+    const tempo = lerTempo(novoFim);
+
+    if (tempo === null) {
+        desenharLista();
+        mensagem("Tempo inválido. Use, por exemplo, 01:23.5.");
+        return;
+    }
+
+    const duracao = Number.isFinite(audio.duration) &&
+        audio.duration > 0
+        ? audio.duration
+        : Infinity;
+
+    novoFim = Math.max(
+        item.inicio,
+        Math.min(tempo, duracao)
+    );
 
     const diferenca = novoFim - item.fim;
 
-    if (Math.abs(diferenca) < 0.001) return;
-
-    const proxima = legendas.find(l => l.index === index + 1);
-
-    if (proxima) {
-        proxima.inicio = Math.max(0, novoFim);
-
-        legendas.forEach(l => {
-            if (l.index > proxima.index) {
-                l.inicio = Math.max(0, l.inicio + diferenca);
-            }
-        });
-    } else {
-        item.fim = novoFim;
+    if (Math.abs(diferenca) < 0.001) {
+        desenharLista();
+        return;
     }
+
+    item.fim = novoFim;
+
+    legendas.forEach(l => {
+        if (l.index > index) {
+            l.inicio = Math.max(0, l.inicio + diferenca);
+            l.fim = Math.max(l.inicio, l.fim + diferenca);
+        }
+    });
 
     recalcularFins();
     desenharLista();
 
-    mensagem("Fim da linha e sincronização atualizados.");
+    mensagem(
+        "Final atualizado. Os horários seguintes foram ajustados."
+    );
 }
 
-// Retorna a legenda que deve aparecer no instante atual.
-// A decisão usa os inícios das linhas, em ordem cronológica.
+// Identifica a legenda que deve aparecer no instante atual.
 
 function linhaAtiva() {
     const t = audio.currentTime;
@@ -152,8 +244,7 @@ function linhaAtiva() {
 
     if (!ativa) return null;
 
-    // Não exibe uma legenda fora do seu intervalo.
-    if (t >= ativa.fim) return null;
+    if (t < ativa.inicio || t >= ativa.fim) return null;
 
     return ativa;
 }
@@ -270,7 +361,6 @@ function renderizar() {
             w * 0.84,
             tamanho
         );
-
     } else {
         ctx.fillStyle = corTexto;
         ctx.textAlign = "center";
@@ -351,7 +441,8 @@ function criarLinhas() {
         return;
     }
 
-    const duracao = Number.isFinite(audio.duration)
+    const duracao = Number.isFinite(audio.duration) &&
+        audio.duration > 0
         ? audio.duration
         : 0;
 
@@ -375,7 +466,7 @@ function criarLinhas() {
     desenharLista();
 
     mensagem(
-        "Linhas criadas. Reproduza a música e marque o início de cada verso."
+        "Linhas criadas. Edite os horários ou sincronize durante a reprodução."
     );
 }
 
@@ -414,41 +505,42 @@ function desenharLista() {
         campos.className = "time-fields";
 
         const labelInicio = document.createElement("label");
-        labelInicio.textContent = "Início (s)";
+        labelInicio.textContent = "Início (mm:ss)";
 
         const inicio = document.createElement("input");
 
-        inicio.type = "number";
-        inicio.min = "0";
-        inicio.step = "0.1";
-        inicio.value = item.inicio.toFixed(1);
-        inicio.setAttribute("aria-label", "Início em segundos");
+        inicio.type = "text";
+        inicio.inputMode = "decimal";
+        inicio.placeholder = "00:00.0";
+        inicio.value = fmtTempo(item.inicio);
+        inicio.setAttribute(
+            "aria-label",
+            "Horário de início em minutos e segundos"
+        );
 
         labelInicio.appendChild(inicio);
 
         const labelFim = document.createElement("label");
-        labelFim.textContent = "Fim (s)";
+        labelFim.textContent = "Fim (mm:ss)";
 
         const fim = document.createElement("input");
 
-        fim.type = "number";
-        fim.min = "0";
-        fim.step = "0.1";
-        fim.value = item.fim.toFixed(1);
-        fim.setAttribute("aria-label", "Fim em segundos");
+        fim.type = "text";
+        fim.inputMode = "decimal";
+        fim.placeholder = "00:00.0";
+        fim.value = fmtTempo(item.fim);
+        fim.setAttribute(
+            "aria-label",
+            "Horário de fim em minutos e segundos"
+        );
 
         labelFim.appendChild(fim);
 
         campos.append(labelInicio, labelFim);
 
-        // CORREÇÃO: alterar o início recalcula os finais
-        // e desloca todos os versos seguintes.
-
         inicio.addEventListener("change", () => {
             alterarInicio(item.index, inicio.value);
         });
-
-        // Alterar o fim ajusta o início da próxima linha.
 
         fim.addEventListener("change", () => {
             alterarFim(item.index, fim.value);
@@ -501,9 +593,6 @@ function marcarTempoAtual() {
 
     if (!item) return;
 
-    // Usa a mesma lógica do ajuste manual.
-    // Todas as linhas seguintes acompanham a diferença.
-
     alterarInicio(index, audio.currentTime);
 
     const proxima = legendas.find(l => l.index === index + 1);
@@ -513,7 +602,7 @@ function marcarTempoAtual() {
     }
 
     mensagem(
-        `Linha ${index + 1} sincronizada em ${audio.currentTime.toFixed(2)} s.`
+        `Linha ${index + 1} sincronizada em ${fmtTempo(audio.currentTime)}.`
     );
 }
 
@@ -661,7 +750,6 @@ async function exportarVideo() {
         mensagem(
             "Gravando o vídeo. Aguarde a música terminar sem fechar a página."
         );
-
     } catch (erro) {
         exportando = false;
 
@@ -697,7 +785,7 @@ $("arquivoAudio").addEventListener("change", e => {
     audio.load();
 });
 
-// Atualizar duração e ajustar a última legenda.
+// Atualizar duração e validar os tempos quando o áudio carregar.
 
 audio.addEventListener("loadedmetadata", () => {
     $("duracao").textContent = fmt(audio.duration);
