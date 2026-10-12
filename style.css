@@ -1,4 +1,4 @@
-/* =========================================================
+./* =========================================================
    LYRIC STUDIO — INTERFACE ORGANIZADA
    Navegação lateral + editor + prévia de vídeo
 ========================================================= */
@@ -1495,4 +1495,136 @@ input[type="color"] {
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* ===== CORREÇÃO DO LAYOUT DO LYRIC STUDIO ===== */
+
+.app-shell {
+  display: grid !important;
+  grid-template-columns: 190px minmax(320px, 0.9fr) minmax(300px, 1.1fr);
+  align-items: start;
+  gap: 18px;
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.sidebar nav,
+.sidebar .nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-panel {
+  display: flex !important;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.editor-panel > section {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.preview-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+}
+
+.preview-panel canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.sidebar a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.editor-panel input,
+.editor-panel select,
+.editor-panel textarea,
+.editor-panel button {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Celular: menu organizado e conteúdo sem sobreposição */
+@media (max-width: 700px) {
+  .app-shell {
+    display: flex !important;
+    flex-direction: column;
+    gap: 16px;
+    padding: 12px;
+    overflow: visible;
+  }
+
+  .sidebar,
+  .editor-panel,
+  .preview-panel {
+    position: static;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sidebar {
+    padding: 12px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .sidebar nav,
+  .sidebar .nav-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .sidebar a {
+    padding: 9px 10px;
+    font-size: 12px;
+  }
+
+  .editor-panel {
+    display: flex !important;
+  }
+
+  .preview-panel {
+    order: -1;
+  }
+
+  .editor-panel > section {
+    margin: 0;
+  }
+
+  .preview-panel canvas {
+    max-height: 65vh;
+    width: auto;
+    max-width: 100%;
+    margin: 0 auto;
+  }
 }
