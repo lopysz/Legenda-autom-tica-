@@ -1734,3 +1734,31 @@ progress {
 .subdrawer:not([open]) > .subdrawer-content {
   display: none;
 }
+/* Fixar prévia no desktop */
+@media (min-width: 900px) {
+  :root {
+    --topbar-offset: 74px; /* ajuste se seu topbar tiver outra altura */
+  }
+
+  .preview-panel {
+    position: sticky;
+    top: var(--topbar-offset);
+    align-self: start;              /* garante que a preview "grude" no início da coluna */
+    max-height: calc(100vh - var(--topbar-offset) - 24px);
+    overflow: auto;                 /* permite rolar internamente se o conteúdo exceder a altura */
+    z-index: 10;                    /* para ficar acima de outros elementos da página */
+  }
+
+  /* Ajustes para o canvas dentro da prévia quando fixa */
+  .preview-panel .canvas-wrap {
+    max-height: calc(100vh - var(--topbar-offset) - 140px); /* mantém espaço para heading/footer da prévia */
+  }
+
+  #previewModalContent > .preview-panel {
+    /* quando a preview for movida ao modal, mantém comportamento independente */
+    position: relative !important;
+    top: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
