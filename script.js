@@ -1699,6 +1699,7 @@ window.addEventListener("beforeunload", () => {
   });
 });
 
+
 /* ==========================================
    LYRIC STUDIO — GAVETAS E PRÉVIA EM POP-UP
 ========================================== */
@@ -1716,9 +1717,13 @@ window.addEventListener("beforeunload", () => {
     const audio = $("audio");
 
     if (!sidebar || !topbar || !preview || !canvas) {
-      console.warn("Lyric Studio: não foi possível localizar todos os elementos da interface.");
+      console.warn("Lyric Studio: elementos da interface não encontrados.");
       return;
     }
+
+    /* ==========================================
+       MENU LATERAL RECOLHÍVEL
+    ========================================== */
 
     let menuButton = $("menuDrawerToggle");
 
@@ -1726,18 +1731,23 @@ window.addEventListener("beforeunload", () => {
       menuButton = document.createElement("button");
       menuButton.id = "menuDrawerToggle";
       menuButton.type = "button";
+      menuButton.className = "menu-drawer-toggle";
       menuButton.setAttribute("aria-label", "Abrir ou recolher o menu");
-      menuButton.setAttribute("aria-expanded", "true");
-      menuButton.innerHTML = '<span aria-hidden="true">☰</span><span>Menu</span>';
+      menuButton.innerHTML =
+        '<span aria-hidden="true">☰</span><span>Menu</span>';
 
       const brand = topbar.querySelector(".brand");
 
       if (brand && brand.parentElement === topbar) {
-        const start = document.createElement("div");
-        start.className = "topbar-start";
-        topbar.insertBefore(start, brand);
-        start.appendChild(menuButton);
-        start.appendChild(brand);
+        let start = topbar.querySelector(".topbar-start");
+
+        if (!start) {
+          start = document.createElement("div");
+          start.className = "topbar-start";
+          topbar.insertBefore(start, brand);
+        }
+
+        start.append(menuButton, brand);
       } else {
         topbar.insertBefore(menuButton, topbar.firstChild);
       }
@@ -1753,18 +1763,22 @@ window.addEventListener("beforeunload", () => {
       document.body.appendChild(backdrop);
     }
 
+    const mediaMobile = window.matchMedia("(max-width: 700px)");
+
     function menuEstaAberto() {
       return document.body.classList.contains("menu-drawer-aberto");
     }
 
     function atualizarBotaoMenu() {
-      const mobile = window.matchMedia("(max-width: 700px)").matches;
-      const aberto = mobile
+      const aberto = mediaMobile.matches
         ? menuEstaAberto()
         : !document.body.classList.contains("sidebar-fechada");
 
       menuButton.setAttribute("aria-expanded", String(aberto));
-      menuButton.innerHTML = '<span aria-hidden="true">☰</span><span>Menu</span>';
+      menuButton.setAttribute(
+        "aria-label",
+        aberto ? "Recolher menu" : "Abrir menu"
+      );
     }
 
     function fecharMenuMobile() {
@@ -1773,7 +1787,7 @@ window.addEventListener("beforeunload", () => {
     }
 
     menuButton.addEventListener("click", () => {
-      if (window.matchMedia("(max-width: 700px)").matches) {
+      if (mediaMobile.matches) {
         document.body.classList.toggle("menu-drawer-aberto");
       } else {
         document.body.classList.toggle("sidebar-fechada");
@@ -1785,75 +1799,211 @@ window.addEventListener("beforeunload", () => {
     backdrop.addEventListener("click", fecharMenuMobile);
 
     sidebar.addEventListener("click", event => {
-      const link = event.target.closest("a, button");
+      const link = event.target.closest("a");
 
-      if (link && window.matchMedia("(max-width: 700px)").matches) {
+      if (link && mediaMobile.matches) {
         fecharMenuMobile();
       }
     });
 
     window.addEventListener("resize", () => {
-      if (!window.matchMedia("(max-width: 700px)").matches) {
-        fecharMenuMobile();
+      if (!mediaMobile.matches) {
+        document.body.classList.remove("menu-drawer-aberto");
       }
+
       atualizarBotaoMenu();
     });
 
-    if (window.matchMedia("(min-width: 701px)").matches) {
-      document.body.classList.add("sidebar-fechada");
-    } else {
+    if (mediaMobile.matches) {
       document.body.classList.remove("sidebar-fechada");
+    } else {
+      document.body.classList.add("sidebar-fechada");
     }
 
     atualizarBotaoMenu();
 
+    /* ==========================================
+       GAVETAS PRINCIPAIS
+       Todas começam fechadas.
+       Cada gaveta funciona independentemente.
+    ========================================== */
+
     const gavetas = [
-      { id: "sec-musica", titulo: "Música e áudio", icone: "♫", aberta: true },
-      { id: "sec-letra", titulo: "Letra", icone: "≡", aberta: true },
-      { id: "sec-legendas", titulo: "Sincronização das legendas", icone: "◷", aberta: true },
-      { id: "sec-aparencia", titulo: "Aparência e texto", icone: "Aa", aberta: false },
-      { id: "sec-recursos", titulo: "Recursos visuais", icone: "▧", aberta: false },
-      { id: "sec-exportar", titulo: "Exportar vídeo", icone: "⇩", aberta: false }
+      {
+        id: "sec-musica",
+        titulo: "Música e áudio",
+        icone: "♫"
+      },
+      {
+        id: "sec-letra",
+        titulo: "Letra",
+        icone: "≡"
+      },
+      {
+        id: "sec-legendas",
+        titulo: "Sincronização das legendas",
+        icone: "◷"
+      },
+      {
+        id: "sec-aparencia",
+        titulo: "Aparência e texto",
+        icone: "Aa"
+      },
+      {
+        id: "sec-recursos",
+        titulo: "Recursos visuais",
+        icone: "▧"
+      },
+      {
+        id: "sec-exportar",
+        titulo: "Exportar vídeo",
+        icone: "⇩"
+      }
     ];
 
     gavetas.forEach(config => {
       const secao = $(config.id);
 
-      if (!secao || secao.dataset.drawerReady === "true") return;
+      if (!secao) return;
 
-      const filhos = Array.from(secao.childNodes);
-      const cabecalho = document.createElement("button");
-      const corpo = document.createElement("div");
-
-      secao.dataset.drawerReady = "true";
       secao.classList.add("drawer-section");
 
-      cabecalho.type = "button";
-      cabecalho.className = "drawer-toggle";
-      cabecalho.setAttribute("aria-expanded", String(config.aberta));
+      let cabecalho = secao.querySelector(":scope > .drawer-toggle");
+      let corpo = secao.querySelector(":scope > .drawer-body");
 
-      cabecalho.innerHTML = `
-        <span class="drawer-toggle-label">
-          <span class="drawer-icon" aria-hidden="true">${config.icone}</span>
-          <span>${config.titulo}</span>
-        </span>
-        <span class="drawer-chevron" aria-hidden="true">⌄</span>
-      `;
+      if (!cabecalho || !corpo) {
+        /*
+          Caso a seção ainda não tenha sido preparada,
+          conserva todos os elementos que já existem.
+        */
+        const filhos = Array.from(secao.childNodes);
 
-      corpo.className = "drawer-body";
-      corpo.hidden = !config.aberta;
+        cabecalho = document.createElement("button");
+        corpo = document.createElement("div");
 
-      filhos.forEach(filho => corpo.appendChild(filho));
+        cabecalho.type = "button";
+        cabecalho.className = "drawer-toggle";
 
-      secao.appendChild(cabecalho);
-      secao.appendChild(corpo);
+        cabecalho.innerHTML = `
+          <span class="drawer-toggle-label">
+            <span class="drawer-icon" aria-hidden="true">
+              ${config.icone}
+            </span>
+            <span>${config.titulo}</span>
+          </span>
+          <span class="drawer-chevron" aria-hidden="true">⌄</span>
+        `;
 
-      cabecalho.addEventListener("click", () => {
-        const abrir = corpo.hidden;
-        corpo.hidden = !abrir;
-        cabecalho.setAttribute("aria-expanded", String(abrir));
-      });
+        corpo.className = "drawer-body";
+
+        filhos.forEach(filho => corpo.appendChild(filho));
+
+        secao.append(cabecalho, corpo);
+      }
+
+      /*
+        Fecha a gaveta principal na inicialização,
+        sem alterar os controles que existem dentro dela.
+      */
+      corpo.hidden = true;
+      cabecalho.setAttribute("aria-expanded", "false");
+
+      if (cabecalho.dataset.drawerClickReady !== "true") {
+        cabecalho.dataset.drawerClickReady = "true";
+
+        cabecalho.addEventListener("click", () => {
+          const abrir = corpo.hidden;
+
+          corpo.hidden = !abrir;
+          cabecalho.setAttribute("aria-expanded", String(abrir));
+        });
+      }
     });
+
+    /* ==========================================
+       SUBGAVETAS
+       Todas começam fechadas.
+       Abrir uma não fecha as demais.
+    ========================================== */
+
+    function prepararSubgavetas() {
+      document.querySelectorAll(".subdrawer-toggle").forEach(botao => {
+        /*
+          Localiza o corpo da subgaveta.
+          Aceita aria-controls, data-target ou o próximo elemento.
+        */
+        const controleId =
+          botao.getAttribute("aria-controls") ||
+          botao.dataset.target ||
+          botao.dataset.subdrawerTarget;
+
+        let corpo = controleId
+          ? $(controleId.replace(/^#/, ""))
+          : null;
+
+        if (!corpo) {
+          const proximo = botao.nextElementSibling;
+
+          if (
+            proximo &&
+            (
+              proximo.classList.contains("subdrawer-body") ||
+              proximo.classList.contains("subdrawer-content")
+            )
+          ) {
+            corpo = proximo;
+          }
+        }
+
+        if (!corpo) {
+          const pai = botao.parentElement;
+
+          if (pai) {
+            corpo = pai.querySelector(
+              ":scope > .subdrawer-body, :scope > .subdrawer-content"
+            );
+          }
+        }
+
+        if (!corpo) {
+          console.warn(
+            "Lyric Studio: corpo da subgaveta não encontrado.",
+            botao
+          );
+          return;
+        }
+
+        botao.setAttribute("aria-expanded", "false");
+        corpo.hidden = true;
+
+        if (botao.dataset.subdrawerClickReady === "true") return;
+
+        botao.dataset.subdrawerClickReady = "true";
+
+        botao.addEventListener("click", () => {
+          const abrir = corpo.hidden;
+
+          corpo.hidden = !abrir;
+          botao.setAttribute("aria-expanded", String(abrir));
+        });
+      });
+    }
+
+    prepararSubgavetas();
+
+    /*
+      Garante que subgavetas existentes continuem fechadas
+      caso o HTML tenha conteúdo dentro de outra estrutura.
+    */
+    document.querySelectorAll(
+      ".subdrawer-body, .subdrawer-content"
+    ).forEach(corpo => {
+      corpo.hidden = true;
+    });
+
+    /* ==========================================
+       PRÉVIA EM POP-UP
+    ========================================== */
 
     let modal = $("previewModal");
 
@@ -1868,11 +2018,19 @@ window.addEventListener("beforeunload", () => {
         <div class="preview-modal-card">
           <div class="preview-modal-header">
             <h2 id="previewModalTitulo">Prévia do vídeo</h2>
-            <button id="fecharPreviewModal" type="button" aria-label="Fechar prévia">×</button>
+            <button
+              id="fecharPreviewModal"
+              type="button"
+              aria-label="Fechar prévia"
+            >×</button>
           </div>
+
           <div id="previewModalContent"></div>
+
           <div class="preview-modal-controls">
-            <button id="previewModalPlay" type="button">▶ Reproduzir áudio</button>
+            <button id="previewModalPlay" type="button">
+              ▶ Reproduzir áudio
+            </button>
             <span id="previewModalTempo">00:00 / 00:00</span>
           </div>
         </div>
@@ -1887,7 +2045,9 @@ window.addEventListener("beforeunload", () => {
       abrirPreviewButton = document.createElement("button");
       abrirPreviewButton.id = "abrirPreviewModal";
       abrirPreviewButton.type = "button";
-      abrirPreviewButton.textContent = "⛶ Abrir prévia em tela ampliada";
+      abrirPreviewButton.textContent =
+        "⛶ Abrir prévia em tela ampliada";
+
       preview.appendChild(abrirPreviewButton);
     }
 
@@ -1896,6 +2056,16 @@ window.addEventListener("beforeunload", () => {
     const tocarModalButton = $("previewModalPlay");
     const tempoModal = $("previewModalTempo");
 
+    if (
+      !conteudoModal ||
+      !fecharModalButton ||
+      !tocarModalButton ||
+      !tempoModal
+    ) {
+      console.warn("Lyric Studio: controles da prévia não encontrados.");
+      return;
+    }
+
     const paiOriginal = preview.parentNode;
     const proximoOriginal = preview.nextSibling;
 
@@ -1903,23 +2073,35 @@ window.addEventListener("beforeunload", () => {
     let focoAnterior = null;
 
     function formatarTempoModal(segundos) {
-      if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
+      if (!Number.isFinite(segundos) || segundos < 0) {
+        segundos = 0;
+      }
 
-      return String(Math.floor(segundos / 60)).padStart(2, "0") + ":" +
-        String(Math.floor(segundos % 60)).padStart(2, "0");
+      const minutos = Math.floor(segundos / 60);
+      const segundosRestantes = Math.floor(segundos % 60);
+
+      return (
+        String(minutos).padStart(2, "0") +
+        ":" +
+        String(segundosRestantes).padStart(2, "0")
+      );
     }
 
     function atualizarTempoModal() {
-      if (!audio || !tempoModal) return;
+      if (!audio) return;
 
       tempoModal.textContent =
-        formatarTempoModal(audio.currentTime) + " / " +
+        formatarTempoModal(audio.currentTime || 0) +
+        " / " +
         formatarTempoModal(audio.duration);
     }
 
     function atualizarBotaoAudio() {
-      if (!tocarModalButton || !audio) return;
-      tocarModalButton.textContent = audio.paused ? "▶ Reproduzir áudio" : "Ⅱ Pausar áudio";
+      if (!audio) return;
+
+      tocarModalButton.textContent = audio.paused
+        ? "▶ Reproduzir áudio"
+        : "Ⅱ Pausar áudio";
     }
 
     function abrirModal() {
@@ -1927,6 +2109,7 @@ window.addEventListener("beforeunload", () => {
 
       focoAnterior = document.activeElement;
       modalAberto = true;
+
       conteudoModal.appendChild(preview);
       modal.classList.add("aberto");
       document.body.style.overflow = "hidden";
@@ -1944,7 +2127,10 @@ window.addEventListener("beforeunload", () => {
       document.body.style.overflow = "";
 
       if (paiOriginal && paiOriginal.isConnected) {
-        if (proximoOriginal && proximoOriginal.parentNode === paiOriginal) {
+        if (
+          proximoOriginal &&
+          proximoOriginal.parentNode === paiOriginal
+        ) {
           paiOriginal.insertBefore(preview, proximoOriginal);
         } else {
           paiOriginal.appendChild(preview);
@@ -1965,16 +2151,34 @@ window.addEventListener("beforeunload", () => {
 
     document.addEventListener("keydown", event => {
       if (event.key === "Escape") {
-        if (modalAberto) fecharModal();
-        else if (menuEstaAberto()) fecharMenuMobile();
+        if (modalAberto) {
+          fecharModal();
+        } else if (mediaMobile.matches && menuEstaAberto()) {
+          fecharMenuMobile();
+        }
       }
     });
 
     if (audio) {
       tocarModalButton.addEventListener("click", async () => {
         try {
-          if (audio.paused) await audio.play();
-          else audio.pause();
+          if (audio.paused) {
+            if (typeof prepararAudioContext === "function") {
+              prepararAudioContext();
+            }
+
+            if (
+              typeof audioContext !== "undefined" &&
+              audioContext &&
+              audioContext.state === "suspended"
+            ) {
+              await audioContext.resume();
+            }
+
+            await audio.play();
+          } else {
+            audio.pause();
+          }
         } catch (erro) {
           console.error("Não foi possível reproduzir o áudio:", erro);
         }
@@ -1982,24 +2186,36 @@ window.addEventListener("beforeunload", () => {
         atualizarBotaoAudio();
       });
 
-      ["timeupdate", "durationchange", "loadedmetadata", "seeked"].forEach(evento =>
-        audio.addEventListener(evento, atualizarTempoModal)
-      );
+      [
+        "timeupdate",
+        "durationchange",
+        "loadedmetadata",
+        "seeked"
+      ].forEach(evento => {
+        audio.addEventListener(evento, atualizarTempoModal);
+      });
 
-      audio.addEventListener("play", atualizarBotaoAudio);
-      audio.addEventListener("pause", atualizarBotaoAudio);
-      audio.addEventListener("ended", atualizarBotaoAudio);
+      ["play", "pause", "ended"].forEach(evento => {
+        audio.addEventListener(evento, atualizarBotaoAudio);
+      });
     }
 
-    console.info("Lyric Studio: gavetas e pop-up inicializados.");
+    console.info(
+      "Lyric Studio: menu, gavetas, subgavetas e prévia inicializados."
+    );
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", iniciarNovaInterface, { once: true });
+    document.addEventListener(
+      "DOMContentLoaded",
+      iniciarNovaInterface,
+      { once: true }
+    );
   } else {
     iniciarNovaInterface();
   }
 })();
+
 
 /* ==========================================
    LYRIC STUDIO — ANIMAÇÕES DE ADESIVOS
