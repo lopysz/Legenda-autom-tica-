@@ -976,3 +976,40 @@ progress {
     font-size: 15px;
   }
 }
+
+/* CORREÇÃO: evitar a prévia sobrepor as ferramentas no celular */
+@media (max-width: 1120px) {
+  .preview-panel {
+    position: relative !important;
+    top: auto !important;
+    align-self: start;
+  }
+}
+
+@media (max-width: 700px) {
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar,
+  .preview-panel,
+  .editor-panel {
+    position: relative !important;
+    top: auto !important;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .sidebar {
+    order: 0;
+  }
+
+  .preview-panel {
+    order: 1;
+  }
+
+  .editor-panel {
+    order: 2;
+  }
+}
