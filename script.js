@@ -435,6 +435,183 @@ function selecionarLegenda(indice) {
   renderizar();
 }
 
+/* ======= Ajustes em cascata (ripple) e auto-sincronização aproximada ======= */
+
+/* Ajusta (desloca) todas as legendas após 'startIndex' pelo delta (em segundos) */
+function rippleAdjust(startIndex, delta) {
+  if (!delta || !legendas.length) return;
+  for (let i = startIndex + 1; i < legendas.length; i++) {
+    legendas[i].inicio = Math.max(0, (Number(legendas[i].inicio) || 0) + delta);
+    legendas[i].fim = Math.max(legendas[i].inicio + 0.01, (Number(legendas[i].fim) || 0) + delta);
+  }
+}
+
+/* ================= Auto-sincronização aproximada (RMS / detecção de picos) ======== */
+
+let _audioBufferCache = null;
+
+/* Decodifica o áudio importado (usando fetch no objectURL) e cacheia o AudioBuffer */
+async function carregarAudioBuffer() {
+  if (!audio.src) throw new Error("Importe o áudio antes de tentar auto-sincronizar.");
+  if (_audioBufferCache) return _audioBufferCache;
+
+  const AudioContextClass = window.OfflineAudioContext || window.AudioContext || window.webkitAudioContext;
+  const acTemp = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const resp = await fetch(audio.src);
+    const ab = await resp.arrayBuffer();
+    _audioBufferCache = await acTemp.decodeAudioData(ab);
+    return _audioBufferCache;
+  } finally {
+    try { acTemp.close(); } catch (_) {}
+  }
+}
+
+/* Calcula envelope RMS com hop em ms (ex.: 10ms), retorna {times:[], rms:[]} */
+function envelopeFromBuffer(buffer, hopMs = 10) {
+  const sampleRate = buffer.sampleRate;
+  const hop = Math.max(1, Math.floor(sampleRate * hopMs / 1000));
+  const channelData = [];
+
+  // mistura canais em mono (média)
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    channelData.push(buffer.getChannelData(c));
+  }
+
+  const length = buffer.length;
+  const rms = [];
+  const times = [];
+
+  for (let i = 0; i < length; i += hop) {
+    let sum = 0;
+    const end = Math.min(length, i + hop);
+
+    for (let c = 0; c < channelData.length; c++) {
+      const chan = channelData[c];
+      for (let j = i; j < end; j++) {
+        const v = chan[j];
+        sum += v * v;
+      }
+    }
+
+    const n = (end - i) * channelData.length;
+    const val = n > 0 ? Math.sqrt(sum / n) : 0;
+    rms.push(val);
+    times.push(i / sampleRate);
+  }
+
+  return { times, rms };
+}
+
+/* Detecção simples de picos: local maxima e acima do limiar (prominence) */
+function detectPeaks(rms, times, options = {}) {
+  const { minProminence = 0.02, minDistance = 0.08 } = options; // ajustes possiveis
+  const peaks = [];
+
+  for (let i = 1; i < rms.length - 1; i++) {
+    if (rms[i] > rms[i - 1] && rms[i] >= rms[i + 1] && rms[i] > minProminence) {
+      peaks.push({ time: times[i], value: rms[i] });
+    }
+  }
+
+  // filtrar peaks muito próximos (manter o maior)
+  const filtered = [];
+  for (const p of peaks) {
+    if (!filtered.length) { filtered.push(p); continue; }
+    const last = filtered[filtered.length - 1];
+    if (p.time - last.time < minDistance) {
+      if (p.value > last.value) filtered[filtered.length - 1] = p;
+    } else {
+      filtered.push(p);
+    }
+  }
+
+  return filtered;
+}
+
+/* Ajusta legendas aproximando cada início ao pico mais próximo dentro de uma janela */
+async function autoAlignAll({ windowSec = 1.2, preOffset = 0.06 } = {}) {
+  try {
+    mensagem("Analisando áudio para auto-sincronização... Aguarde.");
+    const buffer = await carregarAudioBuffer();
+    const env = envelopeFromBuffer(buffer, 10);
+    const peaks = detectPeaks(env.rms, env.times, { minProminence: 0.01, minDistance: 0.06 });
+
+    if (!peaks.length) {
+      mensagem("Não foram encontrados picos claros no áudio. Tente ajustar parâmetros ou sincronizar manualmente.");
+      return;
+    }
+
+    // Para cada legenda, procurar o pico mais próximo do início atual dentro de windowSec
+    for (let i = 0; i < legendas.length; i++) {
+      const L = legendas[i];
+      const dur = Math.max(0.1, (L.fim - L.inicio) || 1);
+
+      let referencia = L.inicio || (i * dur);
+      // procurar pico mais próximo dentro de janela
+      const candidatos = peaks.filter(p => Math.abs(p.time - referencia) <= windowSec);
+      if (candidatos.length) {
+        // pegar o pico de maior intensidade entre os candidatos
+        candidatos.sort((a, b) => b.value - a.value);
+        const melhor = candidatos[0];
+        const novoInicio = Math.max(0, melhor.time - preOffset);
+        L.inicio = novoInicio;
+        L.fim = Math.max(L.inicio + 0.05, L.inicio + dur);
+      }
+    }
+
+    // Garantir que não haja sobreposição: empurra para frente se necessário mantendo durações
+    for (let i = 1; i < legendas.length; i++) {
+      const prev = legendas[i - 1];
+      const cur = legendas[i];
+      if (cur.inicio < prev.fim) {
+        const needed = prev.fim - cur.inicio + 0.001;
+        cur.inicio += needed;
+        cur.fim += needed;
+      }
+    }
+
+    atualizarSeletorLegendas();
+    desenharLista();
+    renderizar();
+    mensagem("Auto-sincronização (aprox.) concluída. Revise e ajuste manualmente se necessário.");
+  } catch (erro) {
+    console.error("autoAlignAll erro:", erro);
+    mensagem("Auto-sincronização falhou: " + (erro && erro.message ? erro.message : "erro desconhecido"));
+  }
+}
+
+/* Criar botão na sync-toolbar para acionar autoAlignAll() dinamicamente */
+(function criarBotaoAutoSync() {
+  const toolbar = document.querySelector(".sync-toolbar");
+  if (!toolbar) return;
+
+  if (document.getElementById("autoSyncBtn")) return;
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "autoSyncBtn";
+  btn.className = "secondary-button";
+  btn.textContent = "Auto-sincronizar (aprox.)";
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await autoAlignAll();
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // inserir antes dos botões existentes (se houver)
+  toolbar.appendChild(btn);
+})();
+
+/* =========================================================
+   DESENHO DA LISTA DE LEGENDAS
+   (desenharLista contém os listeners atualizados para ripple)
+========================================================= */
+
 function desenharLista() {
   const lista = $("listaLegendas");
   lista.innerHTML = "";
@@ -501,11 +678,17 @@ function desenharLista() {
       if (indiceSelecionado !== indice) selecionarLegenda(indice);
     });
 
+    /* --- Novos listeners com rippleAdjust --- */
     campoInicio.addEventListener("change", () => {
-      legenda.inicio = campoParaTempo(campoInicio.value);
+      const oldInicio = legenda.inicio;
+      const novo = campoParaTempo(campoInicio.value);
+      const delta = novo - oldInicio;
 
-      if (legenda.fim <= legenda.inicio) {
-        legenda.fim = legenda.inicio + 0.5;
+      legenda.inicio = Math.max(0, novo);
+      if (legenda.fim <= legenda.inicio) legenda.fim = legenda.inicio + 0.5;
+
+      if (delta !== 0) {
+        rippleAdjust(indice, delta);
       }
 
       campoInicio.value = tempoParaCampo(legenda.inicio);
@@ -515,15 +698,22 @@ function desenharLista() {
     });
 
     campoFim.addEventListener("change", () => {
-      legenda.fim = campoParaTempo(campoFim.value);
+      const oldFim = legenda.fim;
+      let novoFim = campoParaTempo(campoFim.value);
 
-      if (legenda.fim <= legenda.inicio) {
-        legenda.fim = legenda.inicio + 0.5;
+      if (novoFim <= legenda.inicio) novoFim = legenda.inicio + 0.5;
+      const delta = novoFim - oldFim;
+
+      legenda.fim = novoFim;
+
+      if (delta !== 0) {
+        rippleAdjust(indice, delta);
       }
 
       campoFim.value = tempoParaCampo(legenda.fim);
       renderizar();
     });
+    /* --- fim dos novos listeners --- */
 
     texto.addEventListener("input", () => {
       legenda.texto = texto.value;
@@ -815,7 +1005,7 @@ function obterPontoLUT(r, g, b) {
       c001[c] * (1 - fr) * (1 - fg) +
       c101[c] * fr * (1 - fg) +
       c011[c] * (1 - fr) * fg +
-      c111[c] * fr * fg;
+      c111[c] * fr * fb;
 
     return baixo * (1 - fb) + alto * fb;
   });
