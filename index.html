@@ -291,6 +291,96 @@
             </div>
           </div>
 
+          <!-- CONTROLES DE ANIMAÇÃO DO ADESIVO -->
+          <div class="animation-editor">
+            <h3>Animação do adesivo selecionado</h3>
+
+            <div class="animation-grid">
+              <div class="field">
+                <label for="animacaoEntrada">Animação de entrada</label>
+                <select id="animacaoEntrada">
+                  <option value="none">Nenhuma</option>
+                  <option value="fade">Aparecer gradualmente</option>
+                  <option value="zoom">Zoom de entrada</option>
+                  <option value="bounce">Salto</option>
+                  <option value="slide">Deslizar para cima</option>
+                  <option value="spin">Girar ao aparecer</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="animacaoLoop">Animação contínua</label>
+                <select id="animacaoLoop">
+                  <option value="none">Nenhuma</option>
+                  <option value="rotate">Girar continuamente</option>
+                  <option value="float">Flutuar</option>
+                  <option value="swing">Balançar</option>
+                  <option value="pulse">Pulsar</option>
+                  <option value="shake">Tremer</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="animacaoSaida">Animação de saída</label>
+                <select id="animacaoSaida">
+                  <option value="none">Nenhuma</option>
+                  <option value="fade">Desaparecer</option>
+                  <option value="shrink">Encolher</option>
+                  <option value="zoomOut">Zoom para fora</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="animacaoInicio">Começa em (segundos)</label>
+                <input id="animacaoInicio" type="number" min="0" step="0.1" value="0">
+              </div>
+
+              <div class="field">
+                <label for="animacaoFim">Termina em (segundos)</label>
+                <input id="animacaoFim" type="number" min="0" step="0.1" value="0">
+                <small>Zero significa até o fim do vídeo.</small>
+              </div>
+
+              <div class="field">
+                <label for="animacaoVelocidade">Velocidade</label>
+                <select id="animacaoVelocidade">
+                  <option value="0.5">Lenta</option>
+                  <option value="1" selected>Normal</option>
+                  <option value="1.5">Rápida</option>
+                  <option value="2">Muito rápida</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button type="button" id="aplicarAnimacao" class="primary">
+                Aplicar animação
+              </button>
+              <button type="button" id="limparAnimacao">
+                Remover animações
+              </button>
+            </div>
+
+            <p id="estadoAnimacao" class="help-text" aria-live="polite">
+              Selecione um adesivo para configurar suas animações.
+            </p>
+          </div>
+
+          <!-- IMPORTAÇÃO DE ANIMAÇÕES EXTERNAS -->
+          <div class="animation-import">
+            <h3>Importar animação externa</h3>
+            <label for="arquivoAnimacao">Arquivo Lottie ou Rive</label>
+            <input
+              type="file"
+              id="arquivoAnimacao"
+              accept=".json,.lottie,.riv,application/json"
+            >
+            <p class="help-text">
+              JSON deve ser uma animação Lottie. Os formatos Lottie e Rive
+              precisam dos respectivos mecanismos de reprodução.
+            </p>
+          </div>
+
           <div class="button-row">
             <button type="button" id="centralizarImagem" class="secondary-button">Centralizar</button>
             <button type="button" id="excluirImagem" class="danger-button">Excluir adesivo</button>
@@ -378,13 +468,18 @@
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             document.querySelectorAll('.nav-link').forEach(link => {
-              link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
+              link.classList.toggle(
+                'active',
+                link.getAttribute('href') === '#' + entry.target.id
+              );
             });
           }
         });
       }, { rootMargin: '-15% 0px -70% 0px' });
 
-      document.querySelectorAll('.panel-section').forEach(section => observer.observe(section));
+      document.querySelectorAll('.panel-section').forEach(section => {
+        observer.observe(section);
+      });
     }
   </script>
 </body>
