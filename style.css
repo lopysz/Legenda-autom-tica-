@@ -1373,3 +1373,59 @@ progress {
     max-height: 62dvh;
   }
 }
+
+/* AJUSTE DO LAYOUT COM O MENU RECOLHIDO */
+
+@media (min-width: 701px) {
+  .app-shell {
+    align-items: start;
+  }
+
+  body.sidebar-fechada .app-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(290px, 370px);
+    align-items: start;
+    gap: 14px;
+  }
+
+  body.sidebar-fechada .sidebar {
+    display: none !important;
+  }
+
+  body.sidebar-fechada .editor-panel {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    margin: 0;
+    padding-top: 0;
+  }
+
+  body.sidebar-fechada .preview-panel {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky !important;
+    top: 76px !important;
+    align-self: start;
+    min-width: 0;
+    margin: 0;
+  }
+
+  body.sidebar-fechada .drawer-section {
+    scroll-margin-top: 76px;
+  }
+}
+
+/* Ao abrir uma gaveta, o cabeçalho fica visível ao navegar */
+.drawer-section {
+  scroll-margin-top: 76px;
+}
+
+.drawer-toggle {
+  scroll-margin-top: 76px;
+}
+
+/* Evita animações de rolagem que dificultem a navegação */
+html {
+  scroll-behavior: auto;
+}
+
