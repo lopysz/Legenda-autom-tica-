@@ -5,458 +5,387 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b1017">
   <title>Lyric Studio</title>
-  <link rel="stylesheet" href="./style.css?v=5">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-
   <header class="topbar">
     <a class="brand" href="#inicio">
-      <span class="brand-icon">♫</span>
+      <span class="brand-icon">♪</span>
       <span>
         <strong>Lyric Studio</strong>
-        <small>Editor de vídeos musicais</small>
+        <small>Editor de vídeos com letras</small>
       </span>
     </a>
-    <div class="status">
+    <div class="topbar-status">
       <span class="status-dot"></span>
-      EDITOR
+      Editor local
     </div>
   </header>
 
   <main class="app-shell" id="inicio">
-
     <aside class="sidebar">
-      <div class="sidebar-label">SEU PROJETO</div>
+      <p class="sidebar-heading">PROJETO</p>
+      <a class="nav-link active" href="#sec-musica">♫ Música</a>
+      <a class="nav-link" href="#sec-letra">≡ Letra</a>
+      <a class="nav-link" href="#sec-legendas">◷ Sincronização</a>
+      <a class="nav-link" href="#sec-aparencia">✧ Aparência</a>
+      <a class="nav-link" href="#sec-recursos">▧ Recursos visuais</a>
+      <a class="nav-link" href="#sec-exportar">↗ Exportar</a>
 
-      <nav class="side-nav">
-        <a class="nav-item selected" href="#sec-musica">
-          <span class="nav-icon">♫</span>
-          <span>Música</span>
-          <span class="nav-number">01</span>
-        </a>
-
-        <a class="nav-item" href="#sec-letra">
-          <span class="nav-icon">≡</span>
-          <span>Letra</span>
-          <span class="nav-number">02</span>
-        </a>
-
-        <a class="nav-item" href="#sec-legendas">
-          <span class="nav-icon">◷</span>
-          <span>Sincronização</span>
-          <span class="nav-number">03</span>
-        </a>
-
-        <a class="nav-item" href="#sec-aparencia">
-          <span class="nav-icon">◈</span>
-          <span>Aparência</span>
-          <span class="nav-number">04</span>
-        </a>
-
-        <a class="nav-item" href="#sec-exportar">
-          <span class="nav-icon">↗</span>
-          <span>Exportar</span>
-          <span class="nav-number">05</span>
-        </a>
-      </nav>
-
-      <div class="sidebar-bottom">
-        <div class="sidebar-tip-icon">✦</div>
-        <strong>Personalize seu vídeo</strong>
-        <p>Edite as legendas e adicione imagens diretamente à prévia.</p>
-      </div>
-
-      <div class="sidebar-footer">
-        Lyric Studio · Editor local
+      <div class="sidebar-note">
+        <strong>Lyric Studio</strong>
+        <p>Edite, sincronize e exporte seu vídeo diretamente pelo navegador.</p>
       </div>
     </aside>
 
     <section class="editor-panel">
-
       <div class="page-heading">
-        <p class="eyebrow">ESTÚDIO DE EDIÇÃO</p>
-        <h1>Crie seu lyric video</h1>
-        <p class="muted">Sincronize a letra, personalize o visual e exporte.</p>
+        <div>
+          <span class="eyebrow">ESTÚDIO DE EDIÇÃO</span>
+          <h1>Seu projeto</h1>
+          <p>Configure a música, as legendas e o visual do vídeo.</p>
+        </div>
       </div>
 
-      <section class="editor-section" id="sec-musica">
-        <div class="section-heading">
-          <span class="section-icon">♫</span>
+      <section class="panel-section" id="sec-musica">
+        <div class="section-title">
           <div>
-            <h2>Áudio</h2>
-            <p>Escolha a música do seu vídeo.</p>
+            <span class="section-number">01</span>
+            <h2>Música</h2>
           </div>
         </div>
 
-        <label class="file-label" for="arquivoAudio">
-          <span class="upload-icon">↑</span>
-          <strong>Importar música</strong>
-          <small>Selecione um arquivo de áudio do seu dispositivo.</small>
-          <span class="upload-action">Escolher arquivo</span>
+        <label class="file-drop" for="arquivoAudio">
+          <span class="file-icon">♫</span>
+          <strong>Importar áudio</strong>
+          <span>Selecione um arquivo de áudio do seu dispositivo.</span>
+          <small>O formato depende do suporte do navegador.</small>
         </label>
+        <input type="file" id="arquivoAudio" accept="audio/*">
 
-        <input
-          id="arquivoAudio"
-          type="file"
-          accept="audio/*"
-          hidden
-        >
-
-        <p class="file-name" id="nomeAudio">Nenhum áudio selecionado.</p>
-
+        <p id="nomeAudio" class="file-name">Nenhum áudio selecionado</p>
         <audio id="audio" preload="metadata"></audio>
 
-        <div class="audio-controls">
-          <button id="voltar" class="secondary" type="button">−5 s</button>
-          <button id="playPause" class="primary" type="button">▶ Reproduzir</button>
-          <button id="avancar" class="secondary" type="button">+5 s</button>
-        </div>
-
-        <input
-          id="seek"
-          type="range"
-          min="0"
-          max="100"
-          step="0.1"
-          value="0"
-          aria-label="Posição da música"
-        >
-
-        <div class="time-row">
-          <span id="tempoAtual">00:00</span>
-          <span id="duracao">00:00</span>
+        <div class="player">
+          <div class="player-buttons">
+            <button type="button" id="voltar" class="icon-button" title="Voltar 5 segundos">−5</button>
+            <button type="button" id="playPause" class="play-button">▶</button>
+            <button type="button" id="avancar" class="icon-button" title="Avançar 5 segundos">+5</button>
+          </div>
+          <div class="timeline">
+            <div class="time-labels">
+              <span id="tempoAtual">00:00</span>
+              <span id="duracao">00:00</span>
+            </div>
+            <input type="range" id="seek" min="0" max="100" value="0">
+          </div>
         </div>
       </section>
 
-      <section class="editor-section" id="sec-letra">
-        <div class="section-heading">
-          <span class="section-icon">≡</span>
+      <section class="panel-section" id="sec-letra">
+        <div class="section-title">
           <div>
-            <h2>Letra da música</h2>
-            <p>Digite ou cole a letra, colocando cada trecho em uma linha.</p>
+            <span class="section-number">02</span>
+            <h2>Letra</h2>
           </div>
         </div>
 
-        <label for="letra">Letra</label>
-        <textarea
-          id="letra"
-          placeholder="Digite ou cole a letra aqui.&#10;&#10;Cada linha será transformada em uma legenda."
-        ></textarea>
-
-        <button id="criarLinhas" class="primary full" type="button">
-          Criar legendas
-        </button>
-
-        <p class="help-text">
-          A duração inicial será distribuída automaticamente. Depois, ajuste
-          os tempos na seção de sincronização.
-        </p>
+        <label for="letra">Cole a letra da música</label>
+        <textarea id="letra" rows="8" placeholder="Cole aqui a letra, colocando cada verso em uma linha..."></textarea>
+        <p class="help-text">Cada linha será criada como uma legenda que você poderá sincronizar individualmente.</p>
+        <button type="button" id="criarLinhas" class="primary-button">Criar legendas</button>
       </section>
 
-      <section class="editor-section" id="sec-legendas">
-        <div class="section-heading">
-          <span class="section-icon">◷</span>
+      <section class="panel-section" id="sec-legendas">
+        <div class="section-title">
           <div>
+            <span class="section-number">03</span>
             <h2>Sincronização</h2>
-            <p>Defina quando cada linha começa e termina.</p>
           </div>
+          <span id="contadorLegendas" class="counter">0 legendas</span>
         </div>
 
-        <div class="sync-box">
-          <label for="linhaSelecionada">Legenda selecionada</label>
-          <select id="linhaSelecionada">
-            <option value="">Nenhuma legenda disponível</option>
-          </select>
-
-          <button id="marcarTempo" class="primary full" type="button">
-            Marcar início no tempo atual
-          </button>
-
-          <p class="help-text">
-            Reproduza a música e use o botão para marcar o início da legenda
-            selecionada.
-          </p>
+        <div class="sync-toolbar">
+          <div class="field">
+            <label for="linhaSelecionada">Legenda selecionada</label>
+            <select id="linhaSelecionada">
+              <option value="">Nenhuma legenda</option>
+            </select>
+          </div>
+          <button type="button" id="marcarInicio" class="secondary-button">Marcar início</button>
+          <button type="button" id="marcarTempo" class="secondary-button">Marcar fim</button>
         </div>
 
-        <div class="subsection-heading">
-          <h3>Linhas da letra</h3>
-          <span class="subsection-tag" id="contadorLegendas">0 LINHAS</span>
-        </div>
+        <p class="help-text">Selecione uma legenda, reproduza a música e use os botões para marcar o início e o fim no tempo atual.</p>
 
-        <div id="listaLegendas" class="lyrics-list">
-          <p class="muted">Crie as legendas para começar.</p>
+        <div class="caption-list-heading">
+          <span>INÍCIO / FIM</span>
+          <span>TEXTO DA LEGENDA</span>
+        </div>
+        <div id="listaLegendas" class="caption-list">
+          <div class="empty-state">Suas legendas aparecerão aqui.</div>
         </div>
       </section>
 
-      <section class="editor-section" id="sec-aparencia">
-        <div class="section-heading">
-          <span class="section-icon">◈</span>
+      <section class="panel-section" id="sec-aparencia">
+        <div class="section-title">
           <div>
-            <h2>Aparência e elementos</h2>
-            <p>Personalize o vídeo e posicione suas imagens.</p>
+            <span class="section-number">04</span>
+            <h2>Aparência</h2>
           </div>
         </div>
 
-        <div class="settings-grid">
-          <div>
+        <div class="form-grid">
+          <div class="field">
             <label for="formato">Formato do vídeo</label>
             <select id="formato">
-              <option value="vertical">Vertical · 9:16</option>
-              <option value="horizontal">Horizontal · 16:9</option>
+              <option value="vertical">Vertical — 9:16</option>
+              <option value="horizontal">Horizontal — 16:9</option>
+              <option value="quadrado">Quadrado — 1:1</option>
             </select>
           </div>
 
-          <div>
+          <div class="field">
             <label for="posicaoTexto">Posição da legenda</label>
             <select id="posicaoTexto">
-              <option value="centro">Centro</option>
               <option value="baixo">Parte inferior</option>
+              <option value="centro">Centro</option>
               <option value="alto">Parte superior</option>
             </select>
           </div>
-        </div>
 
-        <div class="color-grid">
-          <div>
-            <label for="corFundo">Fundo</label>
-            <input id="corFundo" type="color" value="#101014">
+          <div class="field">
+            <label for="corFundo">Cor de fundo</label>
+            <input type="color" id="corFundo" value="#101522">
           </div>
 
-          <div>
-            <label for="corTexto">Texto</label>
-            <input id="corTexto" type="color" value="#ffffff">
+          <div class="field">
+            <label for="corTexto">Cor do texto</label>
+            <input type="color" id="corTexto" value="#ffffff">
           </div>
 
-          <div>
-            <label for="corDestaque">Destaque</label>
-            <input id="corDestaque" type="color" value="#80f2b5">
-          </div>
-        </div>
-
-        <div class="range-heading">
-          <label for="tamanhoTexto">Tamanho da legenda</label>
-          <span id="valorTamanho" class="range-value">42 px</span>
-        </div>
-
-        <input
-          id="tamanhoTexto"
-          type="range"
-          min="20"
-          max="100"
-          value="42"
-          step="1"
-        >
-
-        <label class="check-row">
-          <input id="mostrarAudio" type="checkbox" checked>
-          <span>Mostrar visualização do áudio</span>
-        </label>
-
-        <div class="sticker-tools">
-          <div class="subsection-heading sticker-heading">
-            <h3>Imagens e figurinhas</h3>
-            <span class="subsection-tag">NOVO</span>
+          <div class="field">
+            <label for="corDestaque">Cor de destaque</label>
+            <input type="color" id="corDestaque" value="#72f0b0">
           </div>
 
-          <p class="help-text">
-            Importe uma imagem e arraste-a diretamente na prévia do vídeo.
-            Você também pode ajustar o tamanho e a rotação.
-          </p>
-
-          <label for="arquivoImagem">Adicionar imagem</label>
-          <input
-            id="arquivoImagem"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-          >
-
-          <p id="nomeImagem" class="file-name">
-            Nenhuma imagem adicionada.
-          </p>
-
-          <div class="range-heading">
-            <label for="tamanhoImagem">Tamanho da imagem</label>
-            <span id="valorTamanhoImagem" class="range-value">100%</span>
+          <div class="field">
+            <label for="fonteTexto">Fonte</label>
+            <select id="fonteTexto">
+              <option value="Arial">Arial</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Trebuchet MS">Trebuchet MS</option>
+              <option value="Impact">Impact</option>
+              <option value="Courier New">Courier New</option>
+              <option value="custom">Fonte importada</option>
+            </select>
           </div>
 
-          <input
-            id="tamanhoImagem"
-            type="range"
-            min="25"
-            max="300"
-            value="100"
-            step="1"
-            disabled
-          >
-
-          <div class="range-heading">
-            <label for="rotacaoImagem">Rotação</label>
-            <span id="valorRotacaoImagem" class="range-value">0°</span>
+          <div class="field full-width">
+            <label for="arquivoFonte">Importar fonte (.TTF, .OTF, .WOFF, .WOFF2)</label>
+            <input type="file" id="arquivoFonte" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2">
+            <small id="nomeFonte" class="help-text">Nenhuma fonte personalizada carregada.</small>
           </div>
 
-          <input
-            id="rotacaoImagem"
-            type="range"
-            min="-180"
-            max="180"
-            value="0"
-            step="1"
-            disabled
-          >
-
-          <div class="button-row sticker-buttons">
-            <button
-              id="centralizarImagem"
-              class="secondary"
-              type="button"
-              disabled
-            >
-              Centralizar
-            </button>
-
-            <button
-              id="excluirImagem"
-              class="danger"
-              type="button"
-              disabled
-            >
-              Excluir imagem
-            </button>
+          <div class="field full-width">
+            <div class="range-heading">
+              <label for="tamanhoTexto">Tamanho do texto</label>
+              <output id="valorTamanho">48 px</output>
+            </div>
+            <input type="range" id="tamanhoTexto" min="20" max="100" value="48">
           </div>
 
-          <p id="estadoImagem" class="help-text" aria-live="polite">
-            Selecione uma imagem para habilitar os controles.
-          </p>
+          <div class="field">
+            <label for="animacaoTexto">Animação da legenda</label>
+            <select id="animacaoTexto">
+              <option value="none">Sem animação</option>
+              <option value="fade">Aparecer suavemente</option>
+              <option value="slide">Deslizar para cima</option>
+              <option value="scale">Zoom</option>
+              <option value="typewriter">Máquina de escrever</option>
+              <option value="highlight">Destaque progressivo</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="efeitoTexto">Efeito do texto</label>
+            <select id="efeitoTexto">
+              <option value="outline">Contorno</option>
+              <option value="shadow">Sombra</option>
+              <option value="glow">Brilho</option>
+              <option value="neon">Neon</option>
+              <option value="none">Sem efeito</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="corEfeito">Cor do efeito</label>
+            <input type="color" id="corEfeito" value="#000000">
+          </div>
+
+          <div class="field">
+            <label for="intensidadeEfeito">Intensidade do efeito</label>
+            <input type="range" id="intensidadeEfeito" min="0" max="30" value="8">
+          </div>
+
+          <div class="field full-width">
+            <label class="check-row">
+              <input type="checkbox" id="mostrarAudio" checked>
+              <span>Mostrar visualizador de áudio</span>
+            </label>
+          </div>
         </div>
       </section>
 
-      <section class="editor-section" id="sec-exportar">
-        <div class="section-heading">
-          <span class="section-icon">↗</span>
+      <section class="panel-section" id="sec-recursos">
+        <div class="section-title">
           <div>
+            <span class="section-number">05</span>
+            <h2>Recursos visuais</h2>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Vídeo de fundo</h3>
+          <p class="help-text">Importe um vídeo para usar como fundo. MOV, MP4 e WEBM dependem do codec e do suporte do navegador.</p>
+          <label class="file-button" for="arquivoVideo">Importar vídeo de fundo</label>
+          <input type="file" id="arquivoVideo" accept="video/mp4,video/webm,video/quicktime,.mov,.mp4,.webm">
+          <p id="nomeVideo" class="file-name">Nenhum vídeo de fundo selecionado</p>
+          <div class="button-row">
+            <button type="button" id="reproduzirFundo" class="secondary-button">Reproduzir fundo</button>
+            <button type="button" id="removerVideo" class="secondary-button">Remover fundo</button>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Correção de cor — LUT</h3>
+          <p class="help-text">Importe um arquivo .CUBE. A LUT será aplicada ao vídeo de fundo quando o formato for válido.</p>
+          <label class="file-button" for="arquivoLUT">Importar LUT (.CUBE)</label>
+          <input type="file" id="arquivoLUT" accept=".cube,text/plain">
+          <p id="nomeLUT" class="file-name">Nenhuma LUT selecionada</p>
+          <button type="button" id="removerLUT" class="secondary-button">Remover LUT</button>
+        </div>
+
+        <div class="subsection">
+          <h3>Adesivos e imagens</h3>
+          <label class="file-button" for="arquivoImagem">Adicionar imagem ou adesivo</label>
+          <input type="file" id="arquivoImagem" accept="image/png,image/jpeg,image/webp,image/gif">
+          <p id="nomeImagem" class="file-name">Nenhuma imagem selecionada</p>
+
+          <div class="form-grid">
+            <div class="field">
+              <div class="range-heading">
+                <label for="tamanhoImagem">Tamanho</label>
+                <output id="valorTamanhoImagem">100%</output>
+              </div>
+              <input type="range" id="tamanhoImagem" min="10" max="300" value="100">
+            </div>
+
+            <div class="field">
+              <div class="range-heading">
+                <label for="rotacaoImagem">Rotação</label>
+                <output id="valorRotacaoImagem">0°</output>
+              </div>
+              <input type="range" id="rotacaoImagem" min="-180" max="180" value="0">
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button type="button" id="centralizarImagem" class="secondary-button">Centralizar</button>
+            <button type="button" id="excluirImagem" class="danger-button">Excluir adesivo</button>
+          </div>
+          <p id="estadoImagem" class="help-text">Você pode arrastar a imagem diretamente na prévia.</p>
+        </div>
+
+        <div class="subsection">
+          <h3>Formatos de projeto externo</h3>
+          <p class="help-text">Projetos de Premiere, After Effects, DaVinci Resolve e outros editores não são abertos diretamente por este editor. Exporte o projeto como vídeo e importe-o como fundo.</p>
+          <label class="file-button" for="arquivoProjeto">Selecionar arquivo de projeto</label>
+          <input type="file" id="arquivoProjeto" accept=".mogrt,.aep,.drp,.setting,.moef,.motn">
+          <p id="estadoProjeto" class="file-name">Nenhum arquivo de projeto selecionado</p>
+        </div>
+      </section>
+
+      <section class="panel-section" id="sec-exportar">
+        <div class="section-title">
+          <div>
+            <span class="section-number">06</span>
             <h2>Exportar vídeo</h2>
-            <p>Gere o vídeo com a música, as legendas e as imagens.</p>
           </div>
         </div>
 
-        <div class="export-info">
-          <strong>Pronto para exportar?</strong>
-          <p>
-            O resultado será gravado em tempo real a partir da prévia.
-            O formato final depende dos formatos de gravação aceitos pelo
-            navegador.
-          </p>
+        <p class="help-text">A exportação registra a prévia do canvas e o áudio da música. O formato disponível depende do navegador.</p>
+        <div class="export-options">
+          <div class="field">
+            <label for="resolucao">Resolução</label>
+            <select id="resolucao">
+              <option value="720">720p</option>
+              <option value="1080" selected>1080p</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="qualidade">Qualidade</label>
+            <select id="qualidade">
+              <option value="standard">Padrão</option>
+              <option value="high" selected>Alta</option>
+            </select>
+          </div>
         </div>
 
-        <button id="exportar" class="export-button full" type="button">
-          Exportar vídeo
-        </button>
-
-        <button
-          id="pararExportacao"
-          class="secondary full"
-          type="button"
-          disabled
-        >
-          Parar exportação
-        </button>
-
-        <p id="mensagem" aria-live="polite">
-          Importe uma música para começar.
-        </p>
+        <div class="button-row export-buttons">
+          <button type="button" id="exportar" class="primary-button">Exportar vídeo</button>
+          <button type="button" id="pararExportacao" class="danger-button" disabled>Parar</button>
+        </div>
+        <p id="mensagem" class="status-message" role="status">Pronto para editar.</p>
       </section>
-
-      <footer class="editor-footer">
-        Feito para criar vídeos musicais com <span>♫</span>
-      </footer>
     </section>
 
     <aside class="preview-panel">
       <div class="preview-heading">
         <div>
-          <h2>Prévia do vídeo</h2>
-          <p>Visualização em tempo real</p>
+          <span class="eyebrow">PRÉ-VISUALIZAÇÃO</span>
+          <h2>Seu vídeo</h2>
         </div>
-
-        <span class="preview-live">
-          <span></span> AO VIVO
-        </span>
+        <span class="live-pill">LIVE</span>
       </div>
 
       <div class="canvas-wrap">
         <canvas id="canvas" width="720" height="1280"></canvas>
       </div>
 
-      <div class="preview-meta">
-        <div>
-          <span class="meta-label">RESOLUÇÃO</span>
-          <strong id="resolucao">720 × 1280</strong>
-        </div>
-
-        <div>
-          <span class="meta-label">FORMATO</span>
-          <strong id="proporcao">9:16 · Vertical</strong>
-        </div>
+      <div class="preview-footer">
+        <span id="proporcao">9:16 · Vertical</span>
+        <span id="tempoPreview">00:00</span>
       </div>
-
-      <div class="preview-tip">
-        <span>✦</span>
-        <p>
-          <strong>Dica:</strong> selecione uma imagem e arraste-a para ajustar
-          sua posição no vídeo.
-        </p>
-      </div>
+      <p class="preview-help">A prévia acompanha a música e as alterações visuais.</p>
     </aside>
-
   </main>
 
+  <video id="videoFundo" muted loop playsinline></video>
+
   <script src="./script.js"></script>
-
   <script>
-    (() => {
-      const links = document.querySelectorAll(".nav-item");
-      const secoes = document.querySelectorAll(
-        "#sec-musica, #sec-letra, #sec-legendas, #sec-aparencia, #sec-exportar"
-      );
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        document.querySelectorAll('.nav-link').forEach(item => item.classList.remove('active'));
+        link.classList.add('active');
+      });
+    });
 
-      if ("IntersectionObserver" in window) {
-        const observador = new IntersectionObserver((entradas) => {
-          const visiveis = entradas
-            .filter(entrada => entrada.isIntersecting)
-            .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-
-          if (!visiveis.length) return;
-
-          const id = visiveis[0].target.id;
-
-          links.forEach(link => {
-            const ativo = link.getAttribute("href") === "#" + id;
-            link.classList.toggle("selected", ativo);
-            link.classList.toggle("active", ativo);
-          });
-        }, {
-          rootMargin: "-100px 0px -55% 0px",
-          threshold: [0.05, 0.2, 0.5]
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            document.querySelectorAll('.nav-link').forEach(link => {
+              link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
+            });
+          }
         });
+      }, { rootMargin: '-15% 0px -70% 0px' });
 
-        secoes.forEach(secao => observador.observe(secao));
-      }
-
-      const formato = document.getElementById("formato");
-      const proporcao = document.getElementById("proporcao");
-
-      function atualizarProporcao() {
-        if (!formato || !proporcao) return;
-
-        proporcao.textContent = formato.value === "horizontal"
-          ? "16:9 · Horizontal"
-          : "9:16 · Vertical";
-      }
-
-      formato?.addEventListener("change", atualizarProporcao);
-      atualizarProporcao();
-    })();
+      document.querySelectorAll('.panel-section').forEach(section => observer.observe(section));
+    }
   </script>
-
 </body>
 </html>
