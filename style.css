@@ -1429,3 +1429,61 @@ html {
   scroll-behavior: auto;
 }
 
+/* ANIMAÇÕES DOS ADESIVOS */
+
+.animation-editor,
+.animation-import {
+  margin-top: 20px;
+  padding: 15px;
+  background: #0c131c;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.animation-editor h3,
+.animation-import h3 {
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.animation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.animation-grid .field {
+  min-width: 0;
+  margin-bottom: 4px;
+}
+
+.animation-grid small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#estadoAnimacao {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.animation-import input[type="file"] {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (max-width: 700px) {
+  .animation-editor,
+  .animation-import {
+    padding: 11px;
+  }
+
+  .animation-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+}
+
