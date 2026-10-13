@@ -450,13 +450,12 @@ function rippleAdjust(startIndex, delta) {
 
 let _audioBufferCache = null;
 
-/* Decodifica o áudio importado (usando fetch no objectURL) e cacheia o AudioBuffer */
 async function carregarAudioBuffer() {
   if (!audio.src) throw new Error("Importe o áudio antes de tentar auto-sincronizar.");
   if (_audioBufferCache) return _audioBufferCache;
 
   const AudioContextClass = window.OfflineAudioContext || window.AudioContext || window.webkitAudioContext;
-  const acTemp = new (window.AudioContext || window.webkitAudioContext)();
+  const acTemp = new AudioContextClass();
   try {
     const resp = await fetch(audio.src);
     const ab = await resp.arrayBuffer();
@@ -467,13 +466,12 @@ async function carregarAudioBuffer() {
   }
 }
 
-/* Calcula envelope RMS com hop em ms (ex.: 10ms), retorna {times:[], rms:[]} */
+/* Calcula envelope RMS com hop em ms, retorna {times:[], rms:[]} */
 function envelopeFromBuffer(buffer, hopMs = 10) {
   const sampleRate = buffer.sampleRate;
   const hop = Math.max(1, Math.floor(sampleRate * hopMs / 1000));
   const channelData = [];
 
-  // mistura canais em mono (média)
   for (let c = 0; c < buffer.numberOfChannels; c++) {
     channelData.push(buffer.getChannelData(c));
   }
@@ -503,20 +501,33 @@ function envelopeFromBuffer(buffer, hopMs = 10) {
   return { times, rms };
 }
 
-/* Detecção simples de picos: local maxima e acima do limiar (prominence) */
-function detectPeaks(rms, times, options = {}) {
-  const { minProminence = 0.02, minDistance = 0.08 } = options; // ajustes possiveis
-  const peaks = [];
+/* Estatísticas simples para threshold adaptativo */
+function stats(values) {
+  const arr = values.slice().sort((a,b)=>a-b);
+  const mid = Math.floor(arr.length / 2);
+  const median = arr.length ? (arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2) : 0;
+  const mean = arr.reduce((s,v) => s + v, 0) / Math.max(1, arr.length);
+  const variance = arr.reduce((s,v) => s + (v - mean) * (v - mean), 0) / Math.max(1, arr.length);
+  return { median, mean, std: Math.sqrt(variance) };
+}
 
+/* Detecta picos usando threshold dinâmico */
+function detectPeaksAdaptive(rms, times, options = {}) {
+  const { minDistance = 0.06, thresholdMultiplier = 1.0, absoluteMin = 0.008 } = options;
+  if (!rms || !rms.length) return [];
+
+  const s = stats(rms);
+  const dynamicThreshold = Math.max(absoluteMin, s.median + s.std * thresholdMultiplier);
+
+  const raw = [];
   for (let i = 1; i < rms.length - 1; i++) {
-    if (rms[i] > rms[i - 1] && rms[i] >= rms[i + 1] && rms[i] > minProminence) {
-      peaks.push({ time: times[i], value: rms[i] });
+    if (rms[i] > rms[i - 1] && rms[i] >= rms[i + 1] && rms[i] >= dynamicThreshold) {
+      raw.push({ time: times[i], value: rms[i] });
     }
   }
 
-  // filtrar peaks muito próximos (manter o maior)
   const filtered = [];
-  for (const p of peaks) {
+  for (const p of raw) {
     if (!filtered.length) { filtered.push(p); continue; }
     const last = filtered[filtered.length - 1];
     if (p.time - last.time < minDistance) {
@@ -529,63 +540,97 @@ function detectPeaks(rms, times, options = {}) {
   return filtered;
 }
 
-/* Ajusta legendas aproximando cada início ao pico mais próximo dentro de uma janela */
-async function autoAlignAll({ windowSec = 1.2, preOffset = 0.06 } = {}) {
+/* Auto-align melhorado: procura picos próximos ao tempo esperado sem drift grande */
+async function autoAlignAllImproved({
+  windowSec = 0.8,
+  preOffset = 0.05,
+  maxShift = 1.5,
+  thresholdMultiplier = 0.9
+} = {}) {
   try {
     mensagem("Analisando áudio para auto-sincronização... Aguarde.");
     const buffer = await carregarAudioBuffer();
-    const env = envelopeFromBuffer(buffer, 10);
-    const peaks = detectPeaks(env.rms, env.times, { minProminence: 0.01, minDistance: 0.06 });
+    const env = envelopeFromBuffer(buffer, 8);
+    const peaks = detectPeaksAdaptive(env.rms, env.times, {
+      minDistance: 0.04,
+      thresholdMultiplier,
+      absoluteMin: 0.008
+    });
 
     if (!peaks.length) {
-      mensagem("Não foram encontrados picos claros no áudio. Tente ajustar parâmetros ou sincronizar manualmente.");
+      mensagem("Não foram encontrados picos claros no áudio. Tente diminuir threshold ou aumentar a janela.");
       return;
     }
 
-    // Para cada legenda, procurar o pico mais próximo do início atual dentro de windowSec
+    const totalDuration = buffer.duration || obterDuracao() || (legendas.length * 2);
+
+    // Alinhamento por legenda, com limite de deslocamento e busca em janela
     for (let i = 0; i < legendas.length; i++) {
       const L = legendas[i];
-      const dur = Math.max(0.1, (L.fim - L.inicio) || 1);
+      const dur = Math.max(0.1, (L.fim - L.inicio) || (totalDuration / Math.max(1, legendas.length)));
+      const expected = (Number.isFinite(L.inicio) && L.inicio > 0)
+        ? L.inicio
+        : (i / Math.max(1, legendas.length)) * totalDuration;
 
-      let referencia = L.inicio || (i * dur);
-      // procurar pico mais próximo dentro de janela
-      const candidatos = peaks.filter(p => Math.abs(p.time - referencia) <= windowSec);
+      const candidatos = peaks.filter(p => Math.abs(p.time - expected) <= windowSec);
+
+      let novoInicio = null;
+
       if (candidatos.length) {
-        // pegar o pico de maior intensidade entre os candidatos
-        candidatos.sort((a, b) => b.value - a.value);
-        const melhor = candidatos[0];
-        const novoInicio = Math.max(0, melhor.time - preOffset);
-        L.inicio = novoInicio;
-        L.fim = Math.max(L.inicio + 0.05, L.inicio + dur);
+        const maxVal = Math.max(...peaks.map(p => p.value), 1);
+        candidatos.sort((a, b) => {
+          const scA = Math.abs(a.time - expected) - (a.value / maxVal) * 0.3;
+          const scB = Math.abs(b.time - expected) - (b.value / maxVal) * 0.3;
+          return scA - scB;
+        });
+        novoInicio = Math.max(0, candidatos[0].time - preOffset);
+      } else {
+        const glob = peaks.reduce((best, p) => {
+          const d = Math.abs(p.time - expected);
+          if (!best || d < best.d) return { p, d };
+          return best;
+        }, null);
+
+        if (glob && glob.d <= windowSec * 2) {
+          novoInicio = Math.max(0, glob.p.time - preOffset);
+        }
+      }
+
+      if (novoInicio !== null) {
+        const shift = novoInicio - L.inicio;
+        if (Math.abs(shift) <= maxShift) {
+          L.inicio = novoInicio;
+          L.fim = Math.max(L.inicio + 0.05, L.inicio + dur);
+        }
       }
     }
 
-    // Garantir que não haja sobreposição: empurra para frente se necessário mantendo durações
+    // Corrigir monotonia e sobreposição com pequeno empurrão
     for (let i = 1; i < legendas.length; i++) {
       const prev = legendas[i - 1];
       const cur = legendas[i];
-      if (cur.inicio < prev.fim) {
-        const needed = prev.fim - cur.inicio + 0.001;
-        cur.inicio += needed;
-        cur.fim += needed;
+      if (cur.inicio < prev.fim + 0.01) {
+        const needed = prev.fim + 0.01 - cur.inicio;
+        const push = Math.min(needed, maxShift);
+        cur.inicio += push;
+        cur.fim += push;
       }
     }
 
+    mensagem("Auto-sincronização (melhorada) concluída. Revise e ajuste manualmente se necessário.");
     atualizarSeletorLegendas();
     desenharLista();
     renderizar();
-    mensagem("Auto-sincronização (aprox.) concluída. Revise e ajuste manualmente se necessário.");
   } catch (erro) {
-    console.error("autoAlignAll erro:", erro);
+    console.error("autoAlignAllImproved erro:", erro);
     mensagem("Auto-sincronização falhou: " + (erro && erro.message ? erro.message : "erro desconhecido"));
   }
 }
 
-/* Criar botão na sync-toolbar para acionar autoAlignAll() dinamicamente */
+/* Botão na toolbar para auto-sync */
 (function criarBotaoAutoSync() {
   const toolbar = document.querySelector(".sync-toolbar");
   if (!toolbar) return;
-
   if (document.getElementById("autoSyncBtn")) return;
 
   const btn = document.createElement("button");
@@ -597,19 +642,17 @@ async function autoAlignAll({ windowSec = 1.2, preOffset = 0.06 } = {}) {
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {
-      await autoAlignAll();
+      await autoAlignAllImproved();
     } finally {
       btn.disabled = false;
     }
   });
 
-  // inserir antes dos botões existentes (se houver)
   toolbar.appendChild(btn);
 })();
 
 /* =========================================================
    DESENHO DA LISTA DE LEGENDAS
-   (desenharLista contém os listeners atualizados para ripple)
 ========================================================= */
 
 function desenharLista() {
@@ -678,7 +721,7 @@ function desenharLista() {
       if (indiceSelecionado !== indice) selecionarLegenda(indice);
     });
 
-    /* --- Novos listeners com rippleAdjust --- */
+    /* listeners com ripple */
     campoInicio.addEventListener("change", () => {
       const oldInicio = legenda.inicio;
       const novo = campoParaTempo(campoInicio.value);
@@ -713,7 +756,6 @@ function desenharLista() {
       campoFim.value = tempoParaCampo(legenda.fim);
       renderizar();
     });
-    /* --- fim dos novos listeners --- */
 
     texto.addEventListener("input", () => {
       legenda.texto = texto.value;
@@ -1005,7 +1047,7 @@ function obterPontoLUT(r, g, b) {
       c001[c] * (1 - fr) * (1 - fg) +
       c101[c] * fr * (1 - fg) +
       c011[c] * (1 - fr) * fg +
-      c111[c] * fr * fb;
+      c111[c] * fr * fg;
 
     return baixo * (1 - fb) + alto * fb;
   });
@@ -1247,10 +1289,6 @@ function encontrarImagem(x, y) {
    ARRASTE CONTÍNUO DE ADESIVOS — CELULAR E COMPUTADOR
 ========================================================= */
 
-/*
-  Impede que o navegador interprete o movimento do dedo
-  sobre o canvas como gesto de rolagem ou zoom.
-*/
 canvas.style.touchAction = "none";
 canvas.style.userSelect = "none";
 canvas.style.webkitUserSelect = "none";
@@ -1369,6 +1407,7 @@ canvas.addEventListener("pointermove", moverArrasto, {
 canvas.addEventListener("pointerup", encerrarArrasto);
 canvas.addEventListener("pointercancel", encerrarArrasto);
 canvas.addEventListener("lostpointercapture", encerrarArrasto);
+
 /* =========================================================
    DESENHO DO TEXTO E EFEITOS
 ========================================================= */
@@ -1910,43 +1949,13 @@ window.addEventListener("beforeunload", () => {
       return;
     }
 
-    /* ==========================================
-       GAVETAS PRINCIPAIS
-       Todas começam fechadas.
-       Cada gaveta funciona independentemente.
-    ========================================== */
-
     const gavetas = [
-      {
-        id: "sec-musica",
-        titulo: "Música e áudio",
-        icone: "♫"
-      },
-      {
-        id: "sec-letra",
-        titulo: "Letra",
-        icone: "≡"
-      },
-      {
-        id: "sec-legendas",
-        titulo: "Sincronização das legendas",
-        icone: "◷"
-      },
-      {
-        id: "sec-aparencia",
-        titulo: "Aparência e texto",
-        icone: "Aa"
-      },
-      {
-        id: "sec-recursos",
-        titulo: "Recursos visuais",
-        icone: "▧"
-      },
-      {
-        id: "sec-exportar",
-        titulo: "Exportar vídeo",
-        icone: "⇩"
-      }
+      { id: "sec-musica", titulo: "Música e áudio", icone: "♫" },
+      { id: "sec-letra", titulo: "Letra", icone: "≡" },
+      { id: "sec-legendas", titulo: "Sincronização das legendas", icone: "◷" },
+      { id: "sec-aparencia", titulo: "Aparência e texto", icone: "Aa" },
+      { id: "sec-recursos", titulo: "Recursos visuais", icone: "▧" },
+      { id: "sec-exportar", titulo: "Exportar vídeo", icone: "⇩" }
     ];
 
     gavetas.forEach(config => {
@@ -1960,10 +1969,6 @@ window.addEventListener("beforeunload", () => {
       let corpo = secao.querySelector(":scope > .drawer-body");
 
       if (!cabecalho || !corpo) {
-        /*
-          Caso a seção ainda não tenha sido preparada,
-          conserva todos os elementos que já existem.
-        */
         const filhos = Array.from(secao.childNodes);
 
         cabecalho = document.createElement("button");
@@ -1974,25 +1979,17 @@ window.addEventListener("beforeunload", () => {
 
         cabecalho.innerHTML = `
           <span class="drawer-toggle-label">
-            <span class="drawer-icon" aria-hidden="true">
-              ${config.icone}
-            </span>
+            <span class="drawer-icon" aria-hidden="true">${config.icone}</span>
             <span>${config.titulo}</span>
           </span>
           <span class="drawer-chevron" aria-hidden="true">⌄</span>
         `;
 
         corpo.className = "drawer-body";
-
         filhos.forEach(filho => corpo.appendChild(filho));
-
         secao.append(cabecalho, corpo);
       }
 
-      /*
-        Fecha a gaveta principal na inicialização,
-        sem alterar os controles que existem dentro dela.
-      */
       corpo.hidden = true;
       cabecalho.setAttribute("aria-expanded", "false");
 
@@ -2001,61 +1998,49 @@ window.addEventListener("beforeunload", () => {
 
         cabecalho.addEventListener("click", () => {
           const abrir = corpo.hidden;
-
           corpo.hidden = !abrir;
           cabecalho.setAttribute("aria-expanded", String(abrir));
         });
       }
     });
 
-   
-/* =========================================================
-   SUBGAVETAS (<details class="subdrawer">)
-   Controle explícito: clique no <summary> abre/fecha somente
-   aquela subgaveta e garante que o conteúdo apareça.
-========================================================= */
+    function sincronizarSubgaveta(detalhe) {
+      const conteudo = detalhe.querySelector(":scope > .subdrawer-content");
+      if (!conteudo) return;
 
-function sincronizarSubgaveta(detalhe) {
-  const conteudo = detalhe.querySelector(":scope > .subdrawer-content");
-  if (!conteudo) return;
+      conteudo.hidden = false;
 
-  conteudo.hidden = false;
-
-  if (detalhe.open) {
-    conteudo.style.display = "block";
-    conteudo.style.visibility = "visible";
-  } else {
-    conteudo.style.display = "none";
-  }
-}
-
-document.querySelectorAll("details.subdrawer").forEach(detalhe => {
-  const resumo = detalhe.querySelector(":scope > summary");
-  if (!resumo || detalhe.dataset.subdrawerReady === "true") return;
-
-  detalhe.dataset.subdrawerReady = "true";
-  detalhe.open = false;
-  sincronizarSubgaveta(detalhe);
-
-  resumo.addEventListener("click", evento => {
-    evento.preventDefault();   // evita conflito com o comportamento nativo
-    evento.stopPropagation();  // não deixa a gaveta principal interferir
-    detalhe.open = !detalhe.open;
-    sincronizarSubgaveta(detalhe);
-  });
-
-  resumo.addEventListener("keydown", evento => {
-    if (evento.key === " " || evento.key === "Enter") {
-      evento.preventDefault();
-      detalhe.open = !detalhe.open;
-      sincronizarSubgaveta(detalhe);
+      if (detalhe.open) {
+        conteudo.style.display = "block";
+        conteudo.style.visibility = "visible";
+      } else {
+        conteudo.style.display = "none";
+      }
     }
-  });
-});
 
-    /* ==========================================
-       PRÉVIA EM POP-UP
-    ========================================== */
+    document.querySelectorAll("details.subdrawer").forEach(detalhe => {
+      const resumo = detalhe.querySelector(":scope > summary");
+      if (!resumo || detalhe.dataset.subdrawerReady === "true") return;
+
+      detalhe.dataset.subdrawerReady = "true";
+      detalhe.open = false;
+      sincronizarSubgaveta(detalhe);
+
+      resumo.addEventListener("click", evento => {
+        evento.preventDefault();
+        evento.stopPropagation();
+        detalhe.open = !detalhe.open;
+        sincronizarSubgaveta(detalhe);
+      });
+
+      resumo.addEventListener("keydown", evento => {
+        if (evento.key === " " || evento.key === "Enter") {
+          evento.preventDefault();
+          detalhe.open = !detalhe.open;
+          sincronizarSubgaveta(detalhe);
+        }
+      });
+    });
 
     let modal = $("previewModal");
 
@@ -2070,19 +2055,13 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
         <div class="preview-modal-card">
           <div class="preview-modal-header">
             <h2 id="previewModalTitulo">Prévia do vídeo</h2>
-            <button
-              id="fecharPreviewModal"
-              type="button"
-              aria-label="Fechar prévia"
-            >×</button>
+            <button id="fecharPreviewModal" type="button" aria-label="Fechar prévia">×</button>
           </div>
 
           <div id="previewModalContent"></div>
 
           <div class="preview-modal-controls">
-            <button id="previewModalPlay" type="button">
-              ▶ Reproduzir áudio
-            </button>
+            <button id="previewModalPlay" type="button">▶ Reproduzir áudio</button>
             <span id="previewModalTempo">00:00 / 00:00</span>
           </div>
         </div>
@@ -2097,9 +2076,7 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
       abrirPreviewButton = document.createElement("button");
       abrirPreviewButton.id = "abrirPreviewModal";
       abrirPreviewButton.type = "button";
-      abrirPreviewButton.textContent =
-        "⛶ Abrir prévia em tela ampliada";
-
+      abrirPreviewButton.textContent = "⛶ Abrir prévia em tela ampliada";
       preview.appendChild(abrirPreviewButton);
     }
 
@@ -2108,12 +2085,7 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
     const tocarModalButton = $("previewModalPlay");
     const tempoModal = $("previewModalTempo");
 
-    if (
-      !conteudoModal ||
-      !fecharModalButton ||
-      !tocarModalButton ||
-      !tempoModal
-    ) {
+    if (!conteudoModal || !fecharModalButton || !tocarModalButton || !tempoModal) {
       console.warn("Lyric Studio: controles da prévia não encontrados.");
       return;
     }
@@ -2125,35 +2097,22 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
     let focoAnterior = null;
 
     function formatarTempoModal(segundos) {
-      if (!Number.isFinite(segundos) || segundos < 0) {
-        segundos = 0;
-      }
+      if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
 
       const minutos = Math.floor(segundos / 60);
       const segundosRestantes = Math.floor(segundos % 60);
-
-      return (
-        String(minutos).padStart(2, "0") +
-        ":" +
-        String(segundosRestantes).padStart(2, "0")
-      );
+      return String(minutos).padStart(2, "0") + ":" + String(segundosRestantes).padStart(2, "0");
     }
 
     function atualizarTempoModal() {
       if (!audio) return;
-
       tempoModal.textContent =
-        formatarTempoModal(audio.currentTime || 0) +
-        " / " +
-        formatarTempoModal(audio.duration);
+        formatarTempoModal(audio.currentTime || 0) + " / " + formatarTempoModal(audio.duration);
     }
 
     function atualizarBotaoAudio() {
       if (!audio) return;
-
-      tocarModalButton.textContent = audio.paused
-        ? "▶ Reproduzir áudio"
-        : "Ⅱ Pausar áudio";
+      tocarModalButton.textContent = audio.paused ? "▶ Reproduzir áudio" : "Ⅱ Pausar áudio";
     }
 
     function abrirModal() {
@@ -2179,10 +2138,7 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
       document.body.style.overflow = "";
 
       if (paiOriginal && paiOriginal.isConnected) {
-        if (
-          proximoOriginal &&
-          proximoOriginal.parentNode === paiOriginal
-        ) {
+        if (proximoOriginal && proximoOriginal.parentNode === paiOriginal) {
           paiOriginal.insertBefore(preview, proximoOriginal);
         } else {
           paiOriginal.appendChild(preview);
@@ -2211,15 +2167,9 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
       tocarModalButton.addEventListener("click", async () => {
         try {
           if (audio.paused) {
-            if (typeof prepararAudioContext === "function") {
-              prepararAudioContext();
-            }
+            if (typeof prepararAudioContext === "function") prepararAudioContext();
 
-            if (
-              typeof audioContext !== "undefined" &&
-              audioContext &&
-              audioContext.state === "suspended"
-            ) {
+            if (typeof audioContext !== "undefined" && audioContext && audioContext.state === "suspended") {
               await audioContext.resume();
             }
 
@@ -2234,12 +2184,7 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
         atualizarBotaoAudio();
       });
 
-      [
-        "timeupdate",
-        "durationchange",
-        "loadedmetadata",
-        "seeked"
-      ].forEach(evento => {
+      ["timeupdate", "durationchange", "loadedmetadata", "seeked"].forEach(evento => {
         audio.addEventListener(evento, atualizarTempoModal);
       });
 
@@ -2248,22 +2193,15 @@ document.querySelectorAll("details.subdrawer").forEach(detalhe => {
       });
     }
 
-    console.info(
-      "Lyric Studio: gavetas, subgavetas e prévia inicializadas."
-    );
+    console.info("Lyric Studio: gavetas, subgavetas e prévia inicializadas.");
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener(
-      "DOMContentLoaded",
-      iniciarNovaInterface,
-      { once: true }
-    );
+    document.addEventListener("DOMContentLoaded", iniciarNovaInterface, { once: true });
   } else {
     iniciarNovaInterface();
   }
 })();
-
 
 /* ==========================================
    LYRIC STUDIO — ANIMAÇÕES DE ADESIVOS
