@@ -1958,15 +1958,24 @@ window.addEventListener("beforeunload", () => {
       }
     });
 
-    window.addEventListener("resize", () => {
-      if (!window.matchMedia("(max-width: 700px)").matches) {
-        fecharMenuMobile();
-      }
+    
+window.addEventListener("resize", () => {
+  if (!window.matchMedia("(max-width: 700px)").matches) {
+    fecharMenuMobile();
+  }
 
-      atualizarBotaoMenu();
-    });
+  atualizarBotaoMenu();
+});
 
-    atualizarBotaoMenu();
+// Inicia com o menu recolhido no computador.
+if (window.matchMedia("(min-width: 701px)").matches) {
+  document.body.classList.add("sidebar-fechada");
+} else {
+  document.body.classList.remove("sidebar-fechada");
+}
+
+atualizarBotaoMenu();
+
 
     /* 2. Transformar seções existentes em gavetas.
        Os elementos originais são mantidos para preservar
