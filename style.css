@@ -953,3 +953,53 @@ small {
     display: none;
   }
 }
+/* =========================================================
+PRÉVIA FIXA — STICKY PREVIEW
+========================================================= */
+
+@media (min-width: 1121px) {
+.app-shell {
+align-items: start;
+}
+
+.preview-panel {
+position: sticky;
+top: 86px;
+align-self: start;
+height: fit-content;
+max-height: calc(100vh - 102px);
+overflow-y: auto;
+scrollbar-width: thin;
+scrollbar-color: #344455 transparent;
+z-index: 10;
+}
+
+.canvas-wrap {
+max-height: calc(100vh - 250px);
+}
+
+#canvas {
+display: block;
+width: 100%;
+height: auto;
+max-height: calc(100vh - 270px);
+object-fit: contain;
+}
+
+.preview-panel::-webkit-scrollbar {
+width: 5px;
+}
+
+.preview-panel::-webkit-scrollbar-thumb {
+background: #344455;
+border-radius: 10px;
+}
+}
+
+@media (max-width: 1120px) {
+.preview-panel {
+position: static;
+max-height: none;
+overflow: visible;
+}
+}
