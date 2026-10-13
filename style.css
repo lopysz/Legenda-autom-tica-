@@ -1687,6 +1687,7 @@ progress {
     transition-duration: 0.01ms !important;
   }
 }
+
 /* =========================================================
    CORREÇÃO — GAVETAS PRINCIPAIS E SUBGAVETAS
 ========================================================= */
@@ -1719,7 +1720,6 @@ progress {
   transform: rotate(180deg);
 }
 
-/* Conteúdo da subgaveta sempre visível quando o details está aberto */
 .subdrawer[open] > .subdrawer-content {
   display: block !important;
   visibility: visible !important;
@@ -1734,37 +1734,84 @@ progress {
 .subdrawer:not([open]) > .subdrawer-content {
   display: none;
 }
-/* Fixar prévia no desktop */
+
+/* =========================================================
+   TIMELINE / TRACK VIEW
+========================================================= */
+
+.timeline-container {
+  margin-top: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timeline-bar {
+  position: relative;
+  height: 14px;
+  background: #0a1119;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.timeline-range {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(114,240,176,0.18), rgba(114,240,176,0.08));
+  pointer-events: none;
+  border-radius: 6px;
+}
+
+.timeline-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  background: var(--green);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  cursor: ew-resize;
+  z-index: 5;
+}
+
+.timeline-handle.end {
+  background: var(--green-dark);
+}
+
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.timeline-controls .time-label {
+  color: var(--muted);
+  font-size: 13px;
+  min-width: 64px;
+  text-align: center;
+}
+
+.timeline-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Player dentro da prévia no desktop */
 @media (min-width: 900px) {
   :root {
-    --topbar-offset: 74px; /* ajuste se seu topbar tiver outra altura */
+    --topbar-offset: 62px;
   }
-
-  .preview-panel {
-    position: sticky;
-    top: var(--topbar-offset);
-    align-self: start;              /* garante que a preview "grude" no início da coluna */
-    max-height: calc(100vh - var(--topbar-offset) - 24px);
-    overflow: auto;                 /* permite rolar internamente se o conteúdo exceder a altura */
-    z-index: 10;                    /* para ficar acima de outros elementos da página */
-  }
-
-  /* Ajustes para o canvas dentro da prévia quando fixa */
-  .preview-panel .canvas-wrap {
-    max-height: calc(100vh - var(--topbar-offset) - 140px); /* mantém espaço para heading/footer da prévia */
-  }
-
-  #previewModalContent > .preview-panel {
-    /* quando a preview for movida ao modal, mantém comportamento independente */
-    position: relative !important;
-    top: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
-}
-/* Coloca o player dentro da prévia e fixa no desktop */
-@media (min-width: 900px) {
-  :root { --topbar-offset: 62px; } /* ajuste se seu topbar tiver outra altura */
 
   .preview-panel {
     display: flex;
@@ -1774,13 +1821,11 @@ progress {
     overflow: auto;
   }
 
-  /* Faz o canvas ocupar o espaço superior e os controles ficarem embaixo */
   .preview-panel .canvas-wrap {
     flex: 1 1 auto;
     min-height: 0;
   }
 
-  /* Estilo do player quando estiver dentro da prévia */
   .preview-panel .player.preview-player {
     flex: 0 0 auto;
     position: sticky;
@@ -1795,10 +1840,15 @@ progress {
   }
 }
 
-/* No mobile manter o comportamento atual */
 @media (max-width: 899px) {
   .preview-panel .player.preview-player {
     position: static !important;
     box-shadow: none;
   }
+}
+
+@media (max-width: 700px) {
+  .timeline-bar { height: 12px; }
+  .timeline-handle { width: 12px; height: 18px; }
+  .timeline-controls .time-label { font-size: 12px; min-width: 52px; }
 }
