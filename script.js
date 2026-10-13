@@ -2459,3 +2459,54 @@ window.addEventListener("beforeunload", () => {
     configurarControlesAnimacao();
   }
 })();
+/* Move o bloco .player para dentro da .preview-panel no desktop e reverte no mobile */
+(function movePlayerToPreview() {
+  const player = document.querySelector(".player");
+  const preview = document.querySelector(".preview-panel");
+  if (!player || !preview) return;
+
+  const originalParent = player.parentNode;
+  // placeholder para reconstituir posição original
+  const placeholder = document.createElement("div");
+  placeholder.className = "player-placeholder";
+  originalParent.insertBefore(placeholder, player);
+
+  const mql = window.matchMedia("(min-width: 900px)");
+  let moved = false;
+
+  function update() {
+    if (mql.matches) {
+      if (!moved) {
+        preview.appendChild(player);
+        player.classList.add("preview-player");
+        moved = true;
+      }
+    } else {
+      if (moved) {
+        // repor no local original (após o placeholder)
+        if (placeholder.parentNode) {
+          placeholder.parentNode.insertBefore(player, placeholder.nextSibling);
+        } else {
+          originalParent.appendChild(player);
+        }
+        player.classList.remove("preview-player");
+        moved = false;
+      }
+    }
+  }
+
+  // Listen changes (compatível com navegadores mais antigos)
+  if (typeof mql.addEventListener === "function") {
+    mql.addEventListener("change", update);
+  } else if (typeof mql.addListener === "function") {
+    mql.addListener(update);
+  }
+
+  // Executa uma vez na carga
+  update();
+
+  // remover placeholder no unload (limpeza)
+  window.addEventListener("beforeunload", () => {
+    try { placeholder.remove(); } catch (_) {}
+  });
+})();
