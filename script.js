@@ -2602,5 +2602,4 @@ window.addEventListener("beforeunload", () => {
     configurarControlesAnimacao();
   }
 })();
-/* =========================================================
-  
+
