@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1017">
+  <title>Lyric Studio</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#inicio">
+      <span class="brand-icon">♪</span>
+      <span>
+        <strong>Lyric Studio</strong>
+        <small>Editor de vídeos com letras</small>
+      </span>
+    </a>
+
+    <div class="topbar-status">
+      <span class="status-dot"></span>
+      Editor local
+    </div>
+  </header>
+
+  <main class="app-shell" id="inicio">
+
+
+    <section class="editor-panel">
+
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">ESTÚDIO DE EDIÇÃO</span>
+          <h1>Seu projeto</h1>
+          <p>Configure a música, as legendas e o visual do vídeo.</p>
+        </div>
+      </div>
+
+      <!-- =====================================================
+           01 — MÚSICA
+      ====================================================== -->
+      <section class="panel-section" id="sec-musica">
+        <div class="section-title">
+          <div>
+            <span class="section-number">01</span>
+            <h2>Música</h2>
+          </div>
+        </div>
+
+        <details class="subdrawer">
+          <summary>Importar áudio</summary>
+          <div class="subdrawer-content">
+
+            <label class="file-drop" for="arquivoAudio">
+              <span class="file-icon">♫</span>
+              <strong>Importar áudio</strong>
+              <span>Selecione um arquivo de áudio do seu dispositivo.</span>
+              <small>O formato depende do suporte do navegador.</small>
+            </label>
+
+            <input type="file" id="arquivoAudio" accept="audio/*">
+
+            <p id="nomeAudio" class="file-name">Nenhum áudio selecionado</p>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Controles de reprodução</summary>
+          <div class="subdrawer-content">
+
+            <audio id="audio" preload="metadata"></audio>
+
+            <div class="player">
+              <div class="player-buttons">
+                <button type="button" id="voltar" class="icon-button" title="Voltar 5 segundos">−5</button>
+                <button type="button" id="playPause" class="play-button">▶</button>
+                <button type="button" id="avancar" class="icon-button" title="Avançar 5 segundos">+5</button>
+              </div>
+
+              <div class="timeline">
+                <div class="time-labels">
+                  <span id="tempoAtual">00:00</span>
+                  <span id="duracao">00:00</span>
+                </div>
+                <input type="range" id="seek" min="0" max="100" value="0">
+              </div>
+            </div>
+
+          </div>
+        </details>
+      </section>
+
+      <!-- =====================================================
+           02 — LETRA
+      ====================================================== -->
+      <section class="panel-section" id="sec-letra">
+        <div class="section-title">
+          <div>
+            <span class="section-number">02</span>
+            <h2>Letra</h2>
+          </div>
+        </div>
+
+        <details class="subdrawer">
+          <summary>Adicionar letra da música</summary>
+          <div class="subdrawer-content">
+
+            <label for="letra">Cole a letra da música</label>
+
+            <textarea
+              id="letra"
+              rows="8"
+              placeholder="Cole aqui a letra, colocando cada verso em uma linha..."
+            ></textarea>
+
+            <p class="help-text">
+              Cada linha será criada como uma legenda que você poderá sincronizar individualmente.
+            </p>
+
+            <button type="button" id="criarLinhas" class="primary-button">
+              Criar legendas
+            </button>
+
+          </div>
+        </details>
+      </section>
+
+      <!-- =====================================================
+           03 — SINCRONIZAÇÃO
+      ====================================================== -->
+      <section class="panel-section" id="sec-legendas">
+        <div class="section-title">
+          <div>
+            <span class="section-number">03</span>
+            <h2>Sincronização</h2>
+          </div>
+
+          <span id="contadorLegendas" class="counter">0 legendas</span>
+        </div>
+
+        <details class="subdrawer">
+          <summary>Sincronizar início e fim</summary>
+          <div class="subdrawer-content">
+
+            <div class="sync-toolbar">
+              <div class="field">
+                <label for="linhaSelecionada">Legenda selecionada</label>
+                <select id="linhaSelecionada">
+                  <option value="">Nenhuma legenda</option>
+                </select>
+              </div>
+
+              <button type="button" id="marcarInicio" class="secondary-button">
+                Marcar início
+              </button>
+
+              <button type="button" id="marcarTempo" class="secondary-button">
+                Marcar fim
+              </button>
+            </div>
+
+            <p class="help-text">
+              Selecione uma legenda, reproduza a música e use os botões para marcar o início e o fim no tempo atual.
+            </p>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Lista de legendas e tempos</summary>
+          <div class="subdrawer-content">
+
+            <div class="caption-list-heading">
+              <span>INÍCIO / FIM</span>
+              <span>TEXTO DA LEGENDA</span>
+            </div>
+
+            <div id="listaLegendas" class="caption-list">
+              <div class="empty-state">Suas legendas aparecerão aqui.</div>
+            </div>
+
+          </div>
+        </details>
+      </section>
+
+      <!-- =====================================================
+           04 — APARÊNCIA
+      ====================================================== -->
+      <section class="panel-section" id="sec-aparencia">
+        <div class="section-title">
+          <div>
+            <span class="section-number">04</span>
+            <h2>Aparência</h2>
+          </div>
+        </div>
+
+        <details class="subdrawer">
+          <summary>Formato e posição do texto</summary>
+          <div class="subdrawer-content">
+
+            <div class="form-grid">
+
+              <div class="field">
+                <label for="formato">Formato do vídeo</label>
+                <select id="formato">
+                  <option value="vertical">Vertical — 9:16</option>
+                  <option value="horizontal">Horizontal — 16:9</option>
+                  <option value="quadrado">Quadrado — 1:1</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="posicaoTexto">Posição da legenda</label>
+                <select id="posicaoTexto">
+                  <option value="baixo">Parte inferior</option>
+                  <option value="centro">Centro</option>
+                  <option value="alto">Parte superior</option>
+                </select>
+              </div>
+
+              <div class="field full-width">
+                <div class="range-heading">
+                  <label for="tamanhoTexto">Tamanho do texto</label>
+                  <output id="valorTamanho">48 px</output>
+                </div>
+                <input type="range" id="tamanhoTexto" min="20" max="100" value="48">
+              </div>
+
+            </div>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Cores e fontes</summary>
+          <div class="subdrawer-content">
+
+            <div class="form-grid">
+
+              <div class="field">
+                <label for="corFundo">Cor de fundo</label>
+                <input type="color" id="corFundo" value="#101522">
+              </div>
+
+              <div class="field">
+                <label for="corTexto">Cor do texto</label>
+                <input type="color" id="corTexto" value="#ffffff">
+              </div>
+
+              <div class="field">
+                <label for="corDestaque">Cor de destaque</label>
+                <input type="color" id="corDestaque" value="#72f0b0">
+              </div>
+
+              <div class="field">
+                <label for="fonteTexto">Fonte</label>
+                <select id="fonteTexto">
+                  <option value="Arial">Arial</option>
+                  <option value="Verdana">Verdana</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Trebuchet MS">Trebuchet MS</option>
+                  <option value="Impact">Impact</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="custom">Fonte importada</option>
+                </select>
+              </div>
+
+              <div class="field full-width">
+                <label for="arquivoFonte">Importar fonte (.TTF, .OTF, .WOFF, .WOFF2)</label>
+                <input
+                  type="file"
+                  id="arquivoFonte"
+                  accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
+                >
+                <small id="nomeFonte" class="help-text">
+                  Nenhuma fonte personalizada carregada.
+                </small>
+              </div>
+
+            </div>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Animações e efeitos do texto</summary>
+          <div class="subdrawer-content">
+
+            <div class="form-grid">
+
+              <div class="field">
+                <label for="animacaoTexto">Animação da legenda</label>
+                <select id="animacaoTexto">
+                  <option value="none">Sem animação</option>
+                  <option value="fade">Aparecer suavemente</option>
+                  <option value="slide">Deslizar para cima</option>
+                  <option value="scale">Zoom</option>
+                  <option value="typewriter">Máquina de escrever</option>
+                  <option value="highlight">Destaque progressivo</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="efeitoTexto">Efeito do texto</label>
+                <select id="efeitoTexto">
+                  <option value="outline">Contorno</option>
+                  <option value="shadow">Sombra</option>
+                  <option value="glow">Brilho</option>
+                  <option value="neon">Neon</option>
+                  <option value="none">Sem efeito</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="corEfeito">Cor do efeito</label>
+                <input type="color" id="corEfeito" value="#000000">
+              </div>
+
+              <div class="field">
+                <label for="intensidadeEfeito">Intensidade do efeito</label>
+                <input type="range" id="intensidadeEfeito" min="0" max="30" value="8">
+              </div>
+
+              <div class="field full-width">
+                <label class="check-row">
+                  <input type="checkbox" id="mostrarAudio" checked>
+                  <span>Mostrar visualizador de áudio</span>
+                </label>
+              </div>
+
+            </div>
+
+          </div>
+        </details>
+      </section>
+
+      <!-- =====================================================
+           05 — RECURSOS VISUAIS
+      ====================================================== -->
+      <section class="panel-section" id="sec-recursos">
+        <div class="section-title">
+          <div>
+            <span class="section-number">05</span>
+            <h2>Recursos visuais</h2>
+          </div>
+        </div>
+
+        <details class="subdrawer">
+          <summary>Vídeo de fundo</summary>
+          <div class="subdrawer-content">
+
+            <p class="help-text">
+              Importe um vídeo para usar como fundo. MOV, MP4 e WEBM dependem do codec e do suporte do navegador.
+            </p>
+
+            <label class="file-button" for="arquivoVideo">
+              Importar vídeo de fundo
+            </label>
+
+            <input
+              type="file"
+              id="arquivoVideo"
+              accept="video/mp4,video/webm,video/quicktime,.mov,.mp4,.webm"
+            >
+
+            <p id="nomeVideo" class="file-name">Nenhum vídeo de fundo selecionado</p>
+
+            <div class="button-row">
+              <button type="button" id="reproduzirFundo" class="secondary-button">
+                Reproduzir fundo
+              </button>
+
+              <button type="button" id="removerVideo" class="secondary-button">
+                Remover fundo
+              </button>
+            </div>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Correção de cor — LUT</summary>
+          <div class="subdrawer-content">
+
+            <p class="help-text">
+              Importe um arquivo .CUBE. A LUT será aplicada ao vídeo de fundo quando o formato for válido.
+            </p>
+
+            <label class="file-button" for="arquivoLUT">Importar LUT (.CUBE)</label>
+            <input type="file" id="arquivoLUT" accept=".cube,text/plain">
+
+            <p id="nomeLUT" class="file-name">Nenhuma LUT selecionada</p>
+
+            <button type="button" id="removerLUT" class="secondary-button">
+              Remover LUT
+            </button>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Adicionar e ajustar adesivos</summary>
+          <div class="subdrawer-content">
+
+            <label class="file-button" for="arquivoImagem">
+              Adicionar imagem ou adesivo
+            </label>
+
+            <input
+              type="file"
+              id="arquivoImagem"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+            >
+
+            <p id="nomeImagem" class="file-name">Nenhuma imagem selecionada</p>
+
+            <div class="form-grid">
+
+              <div class="field">
+                <div class="range-heading">
+                  <label for="tamanhoImagem">Tamanho</label>
+                  <output id="valorTamanhoImagem">100%</output>
+                </div>
+                <input type="range" id="tamanhoImagem" min="10" max="300" value="100">
+              </div>
+
+              <div class="field">
+                <div class="range-heading">
+                  <label for="rotacaoImagem">Rotação</label>
+                  <output id="valorRotacaoImagem">0°</output>
+                </div>
+                <input type="range" id="rotacaoImagem" min="-180" max="180" value="0">
+              </div>
+
+            </div>
+
+            <div class="button-row">
+              <button type="button" id="centralizarImagem" class="secondary-button">
+                Centralizar
+              </button>
+
+              <button type="button" id="excluirImagem" class="danger-button">
+                Excluir adesivo
+              </button>
+            </div>
+
+            <p id="estadoImagem" class="help-text">
+              Você pode arrastar a imagem diretamente na prévia.
+            </p>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Animações dos adesivos</summary>
+          <div class="subdrawer-content">
+
+            <div class="animation-editor">
+              <h3>Animação do adesivo selecionado</h3>
+
+              <div class="animation-grid">
+
+                <div class="field">
+                  <label for="animacaoEntrada">Animação de entrada</label>
+                  <select id="animacaoEntrada">
+                    <option value="none">Nenhuma</option>
+                    <option value="fade">Aparecer gradualmente</option>
+                    <option value="zoom">Zoom de entrada</option>
+                    <option value="bounce">Salto</option>
+                    <option value="slide">Deslizar para cima</option>
+                    <option value="spin">Girar ao aparecer</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="animacaoLoop">Animação contínua</label>
+                  <select id="animacaoLoop">
+                    <option value="none">Nenhuma</option>
+                    <option value="rotate">Girar continuamente</option>
+                    <option value="float">Flutuar</option>
+                    <option value="swing">Balançar</option>
+                    <option value="pulse">Pulsar</option>
+                    <option value="shake">Tremer</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="animacaoSaida">Animação de saída</label>
+                  <select id="animacaoSaida">
+                    <option value="none">Nenhuma</option>
+                    <option value="fade">Desaparecer</option>
+                    <option value="shrink">Encolher</option>
+                    <option value="zoomOut">Zoom para fora</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="animacaoInicio">Começa em (segundos)</label>
+                  <input id="animacaoInicio" type="number" min="0" step="0.1" value="0">
+                </div>
+
+                <div class="field">
+                  <label for="animacaoFim">Termina em (segundos)</label>
+                  <input id="animacaoFim" type="number" min="0" step="0.1" value="0">
+                  <small>Zero significa até o fim do vídeo.</small>
+                </div>
+
+                <div class="field">
+                  <label for="animacaoVelocidade">Velocidade</label>
+                  <select id="animacaoVelocidade">
+                    <option value="0.5">Lenta</option>
+                    <option value="1" selected>Normal</option>
+                    <option value="1.5">Rápida</option>
+                    <option value="2">Muito rápida</option>
+                  </select>
+                </div>
+
+              </div>
+
+              <div class="button-row">
+                <button type="button" id="aplicarAnimacao" class="primary">
+                  Aplicar animação
+                </button>
+
+                <button type="button" id="limparAnimacao">
+                  Remover animações
+                </button>
+              </div>
+
+              <p id="estadoAnimacao" class="help-text" aria-live="polite">
+                Selecione um adesivo para configurar suas animações.
+              </p>
+            </div>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Importar animação externa</summary>
+          <div class="subdrawer-content">
+
+            <div class="animation-import">
+              <h3>Importar animação externa</h3>
+
+              <label for="arquivoAnimacao">Arquivo Lottie ou Rive</label>
+
+              <input
+                type="file"
+                id="arquivoAnimacao"
+                accept=".json,.lottie,.riv,application/json"
+              >
+
+              <p class="help-text">
+                JSON deve ser uma animação Lottie. Os formatos Lottie e Rive precisam dos respectivos mecanismos de reprodução.
+              </p>
+            </div>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Formatos de projeto externo</summary>
+          <div class="subdrawer-content">
+
+            <p class="help-text">
+              Projetos de Premiere, After Effects, DaVinci Resolve e outros editores não são abertos diretamente por este editor. Exporte o projeto como vídeo e importe-o como fundo.
+            </p>
+
+            <label class="file-button" for="arquivoProjeto">
+              Selecionar arquivo de projeto
+            </label>
+
+            <input
+              type="file"
+              id="arquivoProjeto"
+              accept=".mogrt,.aep,.drp,.setting,.moef,.motn"
+            >
+
+            <p id="estadoProjeto" class="file-name">
+              Nenhum arquivo de projeto selecionado
+            </p>
+
+          </div>
+        </details>
+      </section>
+
+      <!-- =====================================================
+           06 — EXPORTAR
+      ====================================================== -->
+      <section class="panel-section" id="sec-exportar">
+        <div class="section-title">
+          <div>
+            <span class="section-number">06</span>
+            <h2>Exportar vídeo</h2>
+          </div>
+        </div>
+
+        <details class="subdrawer">
+          <summary>Configurações de exportação</summary>
+          <div class="subdrawer-content">
+
+            <p class="help-text">
+              A exportação registra a prévia do canvas e o áudio da música. O formato disponível depende do navegador.
+            </p>
+
+            <div class="export-options">
+
+              <div class="field">
+                <label for="resolucao">Resolução</label>
+                <select id="resolucao">
+                  <option value="720">720p</option>
+                  <option value="1080" selected>1080p</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="qualidade">Qualidade</label>
+                <select id="qualidade">
+                  <option value="standard">Padrão</option>
+                  <option value="high" selected>Alta</option>
+                </select>
+              </div>
+
+            </div>
+
+          </div>
+        </details>
+
+        <details class="subdrawer">
+          <summary>Iniciar ou interromper exportação</summary>
+          <div class="subdrawer-content">
+
+            <div class="button-row export-buttons">
+              <button type="button" id="exportar" class="primary-button">
+                Exportar vídeo
+              </button>
+
+              <button type="button" id="pararExportacao" class="danger-button" disabled>
+                Parar
+              </button>
+            </div>
+
+            <p id="mensagem" class="status-message" role="status">
+              Pronto para editar.
+            </p>
+
+          </div>
+        </details>
+      </section>
+
+    </section>
+
+    <!-- =====================================================
+         PRÉVIA ORIGINAL — PRESERVADA PARA O SCRIPT DO POP-UP
+    ====================================================== -->
+    <aside class="preview-panel">
+      <div class="preview-heading">
+        <div>
+          <span class="eyebrow">PRÉ-VISUALIZAÇÃO</span>
+          <h2>Seu vídeo</h2>
+        </div>
+        <span class="live-pill">LIVE</span>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="canvas" width="720" height="1280"></canvas>
+      </div>
+
+      <div class="preview-footer">
+        <span id="proporcao">9:16 · Vertical</span>
+        <span id="tempoPreview">00:00</span>
+      </div>
+
+      <p class="preview-help">
+        A prévia acompanha a música e as alterações visuais.
+      </p>
+    </aside>
+
+  </main>
+
+  <video id="videoFundo" muted loop playsinline></video>
+
+  <script src="./script.js"></script>
+
+</body>
+</html>
