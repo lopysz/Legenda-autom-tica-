@@ -1,9 +1,9 @@
-
 "use strict";
 
 /* =========================================================
    LYRIC STUDIO
    Áudio, legendas sincronizadas, prévia e exportação
+   Imagens arrastáveis, redimensionáveis e rotacionáveis
 ========================================================= */
 
 const $ = id => document.getElementById(id);
@@ -12,878 +12,1332 @@ const audio = $("audio");
 const canvas = $("canvas");
 const ctx = canvas.getContext("2d");
 
+/* =========================================================
+   ESTADO
+========================================================= */
+
 let arquivoURL = null;
 let legendas = [];
+
 let audioContext = null;
 let sourceNode = null;
 let audioDestination = null;
 let analyser = null;
+
 let recorder = null;
 let chunks = [];
 let exportando = false;
 let animacao = null;
 let audioAnterior = null;
 
+let elementosVisuais = [];
+let elementoSelecionado = null;
+let proximoIdElemento = 1;
+let arrasteElemento = null;
+
 /* =========================================================
-   FORMATAÇÃO E LEITURA DOS TEMPOS
+   UTILITÁRIOS
 ========================================================= */
 
-// Exibição do relógio da música: 01:23
 function fmt(segundos) {
-    if (!Number.isFinite(segundos)) return "00:00";
+  if (!Number.isFinite(segundos) || segundos < 0) {
+    segundos = 0;
+  }
 
-    const s = Math.max(0, Math.floor(segundos));
+  const minutos = Math.floor(segundos / 60);
+  const segundosRestantes = Math.floor(segundos % 60);
 
-    return String(Math.floor(s / 60)).padStart(2, "0")
-        + ":"
-        + String(s % 60).padStart(2, "0");
+  return (
+    String(minutos).padStart(2, "0") +
+    ":" +
+    String(segundosRestantes).padStart(2, "0")
+  );
 }
 
-// Exibição dos campos de legenda: 01:23.5
 function fmtTempo(segundos) {
-    if (!Number.isFinite(segundos)) return "00:00.0";
+  if (!Number.isFinite(segundos) || segundos < 0) {
+    segundos = 0;
+  }
 
-    segundos = Math.max(0, segundos);
+  const minutos = Math.floor(segundos / 60);
+  const segundosRestantes = (segundos % 60).toFixed(3);
 
-    const minutos = Math.floor(segundos / 60);
-    const resto = segundos - minutos * 60;
-
-    return String(minutos).padStart(2, "0")
-        + ":"
-        + resto.toFixed(1).padStart(4, "0");
+  return (
+    String(minutos).padStart(2, "0") +
+    ":" +
+    String(Math.floor(Number(segundosRestantes))).padStart(2, "0") +
+    "." +
+    segundosRestantes.split(".")[1]
+  );
 }
 
-// Converte tanto 01:23.5 quanto 83.5 em segundos.
-// Também aceita vírgula decimal: 01:23,5 ou 83,5.
 function lerTempo(valor) {
-    if (typeof valor !== "string" && typeof valor !== "number") {
-        return null;
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? Math.max(0, valor) : 0;
+  }
+
+  const texto = String(valor ?? "").trim();
+
+  if (!texto) return 0;
+
+  if (/^\d+([.,]\d+)?$/.test(texto)) {
+    return Math.max(0, Number(texto.replace(",", ".")) || 0);
+  }
+
+  const partes = texto.split(":");
+
+  if (partes.length === 2) {
+    const minutos = Number(partes[0]);
+    const segundos = Number(partes[1].replace(",", "."));
+
+    if (!Number.isFinite(minutos) || !Number.isFinite(segundos)) {
+      return 0;
     }
 
-    const texto = String(valor).trim().replace(",", ".");
+    return Math.max(0, minutos * 60 + segundos);
+  }
 
-    if (!texto) return null;
+  if (partes.length === 3) {
+    const horas = Number(partes[0]);
+    const minutos = Number(partes[1]);
+    const segundos = Number(partes[2].replace(",", "."));
 
-    if (texto.includes(":")) {
-        const partes = texto.split(":");
-
-        if (partes.length !== 2) return null;
-
-        const minutosTexto = partes[0];
-        const segundosTexto = partes[1];
-
-        if (!/^\d+$/.test(minutosTexto)) return null;
-        if (!/^\d{1,2}(?:\.\d+)?$/.test(segundosTexto)) {
-            return null;
-        }
-
-        const minutos = Number(minutosTexto);
-        const segundos = Number(segundosTexto);
-
-        if (!Number.isFinite(minutos) ||
-            !Number.isFinite(segundos) ||
-            segundos >= 60) {
-            return null;
-        }
-
-        return minutos * 60 + segundos;
+    if (
+      !Number.isFinite(horas) ||
+      !Number.isFinite(minutos) ||
+      !Number.isFinite(segundos)
+    ) {
+      return 0;
     }
 
-    if (!/^\d+(?:\.\d+)?$/.test(texto)) return null;
+    return Math.max(0, horas * 3600 + minutos * 60 + segundos);
+  }
 
-    const segundos = Number(texto);
-
-    return Number.isFinite(segundos) ? segundos : null;
+  return 0;
 }
 
 function mensagem(texto) {
-    $("mensagem").textContent = texto;
+  const elemento = $("mensagem");
+
+  if (elemento) {
+    elemento.textContent = texto;
+  }
+}
+
+function limitar(valor, minimo, maximo) {
+  return Math.min(maximo, Math.max(minimo, valor));
+}
+
+function duracaoAudio() {
+  return Number.isFinite(audio.duration) ? audio.duration : 0;
 }
 
 /* =========================================================
-   SINCRONIZAÇÃO DAS LEGENDAS
+   ÁUDIO
 ========================================================= */
 
-// Mantém os tempos válidos sem sobrescrever os finais
-// que o usuário editou manualmente.
+function carregarAudio(arquivo) {
+  if (!arquivo) return;
+
+  if (arquivoURL) {
+    URL.revokeObjectURL(arquivoURL);
+  }
+
+  arquivoURL = URL.createObjectURL(arquivo);
+
+  audio.pause();
+  audio.src = arquivoURL;
+  audio.load();
+
+  $("nomeAudio").textContent = arquivo.name;
+  $("playPause").textContent = "▶ Reproduzir";
+
+  mensagem("Áudio carregado. Agora você pode criar as legendas.");
+}
+
+audio.addEventListener("loadedmetadata", () => {
+  $("duracao").textContent = fmt(duracaoAudio());
+  $("tempoAtual").textContent = fmt(audio.currentTime);
+  $("seek").value = 0;
+
+  recalcularFins();
+  desenharLista();
+});
+
+audio.addEventListener("timeupdate", () => {
+  $("tempoAtual").textContent = fmt(audio.currentTime);
+
+  if (duracaoAudio() > 0) {
+    $("seek").value =
+      (audio.currentTime / duracaoAudio()) * 100;
+  }
+
+  atualizarLinhasAtivas();
+});
+
+audio.addEventListener("play", () => {
+  $("playPause").textContent = "⏸ Pausar";
+});
+
+audio.addEventListener("pause", () => {
+  $("playPause").textContent = "▶ Reproduzir";
+});
+
+audio.addEventListener("ended", () => {
+  $("playPause").textContent = "▶ Reproduzir";
+});
+
+$("arquivoAudio").addEventListener("change", evento => {
+  const arquivo = evento.target.files?.[0];
+
+  if (arquivo) {
+    carregarAudio(arquivo);
+  }
+
+  evento.target.value = "";
+});
+
+$("playPause").addEventListener("click", async () => {
+  if (!audio.src) {
+    mensagem("Importe uma música antes de reproduzir.");
+    return;
+  }
+
+  try {
+    if (audio.paused) {
+      await audio.play();
+    } else {
+      audio.pause();
+    }
+  } catch (erro) {
+    console.error(erro);
+    mensagem("Não foi possível reproduzir o áudio.");
+  }
+});
+
+$("voltar").addEventListener("click", () => {
+  if (!audio.src) return;
+
+  audio.currentTime = Math.max(0, audio.currentTime - 5);
+});
+
+$("avancar").addEventListener("click", () => {
+  if (!audio.src) return;
+
+  const limite = duracaoAudio() || Infinity;
+
+  audio.currentTime = Math.min(
+    limite,
+    audio.currentTime + 5
+  );
+});
+
+$("seek").addEventListener("input", evento => {
+  if (!audio.src || !duracaoAudio()) return;
+
+  audio.currentTime =
+    (Number(evento.target.value) / 100) * duracaoAudio();
+});
+
+/* =========================================================
+   LEGENDAS
+========================================================= */
 
 function recalcularFins() {
-    legendas.sort((a, b) => a.index - b.index);
+  legendas.forEach((legenda, indice) => {
+    if (!Number.isFinite(legenda.inicio)) {
+      legenda.inicio = 0;
+    }
 
-    const duracao = Number.isFinite(audio.duration) &&
-        audio.duration > 0
-        ? audio.duration
-        : Infinity;
+    if (!Number.isFinite(legenda.fim)) {
+      legenda.fim = legenda.inicio;
+    }
 
-    legendas.forEach(item => {
-        item.inicio = Math.max(0, Math.min(item.inicio, duracao));
-        item.fim = Math.max(
-            item.inicio,
-            Math.min(item.fim, duracao)
-        );
-    });
+    if (indice < legendas.length - 1) {
+      if (legenda.fim > legendas[indice + 1].inicio) {
+        legenda.fim = legendas[indice + 1].inicio;
+      }
+    }
+
+    legenda.inicio = Math.max(0, legenda.inicio);
+    legenda.fim = Math.max(legenda.inicio, legenda.fim);
+  });
 }
 
-// Alterar o início desloca o final da própria linha
-// e os horários das linhas seguintes pela mesma diferença.
+function alterarInicio(indice, valor) {
+  const legenda = legendas[indice];
 
-function alterarInicio(index, novoInicio) {
-    const item = legendas.find(l => l.index === index);
+  if (!legenda) return;
 
-    if (!item) return;
+  const novoInicio = limitar(
+    lerTempo(valor),
+    0,
+    duracaoAudio() || Infinity
+  );
 
-    const tempo = lerTempo(novoInicio);
+  legenda.inicio = novoInicio;
 
-    if (tempo === null) {
-        desenharLista();
-        mensagem("Tempo inválido. Use, por exemplo, 01:23.5.");
-        return;
-    }
+  if (legenda.fim < novoInicio) {
+    legenda.fim = novoInicio;
+  }
 
-    const duracao = Number.isFinite(audio.duration) &&
-        audio.duration > 0
-        ? audio.duration
-        : Infinity;
+  if (indice > 0 && legendas[indice - 1].fim > novoInicio) {
+    legendas[indice - 1].fim = novoInicio;
+  }
 
-    novoInicio = Math.max(0, Math.min(tempo, duracao));
+  desenharLista();
+}
 
-    const diferenca = novoInicio - item.inicio;
+function alterarFim(indice, valor) {
+  const legenda = legendas[indice];
 
-    if (Math.abs(diferenca) < 0.001) {
-        desenharLista();
-        return;
-    }
+  if (!legenda) return;
 
-    item.inicio = novoInicio;
-    item.fim = Math.max(item.inicio, item.fim + diferenca);
+  const limite = duracaoAudio() || Infinity;
 
-    legendas.forEach(l => {
-        if (l.index > index) {
-            l.inicio = Math.max(0, l.inicio + diferenca);
-            l.fim = Math.max(l.inicio, l.fim + diferenca);
-        }
-    });
+  let novoFim = limitar(
+    lerTempo(valor),
+    legenda.inicio,
+    limite
+  );
 
-    recalcularFins();
-    desenharLista();
-
-    mensagem(
-        "Início atualizado. Os horários seguintes foram ajustados."
+  if (indice < legendas.length - 1) {
+    novoFim = Math.min(
+      novoFim,
+      legendas[indice + 1].inicio
     );
+  }
+
+  legenda.fim = novoFim;
+  desenharLista();
 }
 
-// Alterar o final desloca as linhas seguintes pela diferença.
-// Quando as linhas eram consecutivas, o início da próxima
-// acompanhará exatamente o novo final.
+function linhaAtiva(tempo = audio.currentTime) {
+  return legendas.find(legenda =>
+    tempo >= legenda.inicio && tempo < legenda.fim
+  ) || null;
+}
 
-function alterarFim(index, novoFim) {
-    const item = legendas.find(l => l.index === index);
+function criarLinhas() {
+  const texto = $("letra").value.trim();
 
-    if (!item) return;
+  if (!texto) {
+    mensagem("Digite ou cole a letra antes de criar as legendas.");
+    return;
+  }
 
-    const tempo = lerTempo(novoFim);
+  const linhas = texto
+    .split(/\r?\n/)
+    .map(linha => linha.trim())
+    .filter(Boolean);
 
-    if (tempo === null) {
-        desenharLista();
-        mensagem("Tempo inválido. Use, por exemplo, 01:23.5.");
-        return;
-    }
+  if (!linhas.length) {
+    mensagem("Não foram encontradas linhas na letra.");
+    return;
+  }
 
-    const duracao = Number.isFinite(audio.duration) &&
-        audio.duration > 0
-        ? audio.duration
-        : Infinity;
+  const duracao = duracaoAudio();
+  const intervalo = duracao > 0
+    ? duracao / linhas.length
+    : 4;
 
-    novoFim = Math.max(
-        item.inicio,
-        Math.min(tempo, duracao)
-    );
+  legendas = linhas.map((textoLinha, indice) => ({
+    id: indice + 1,
+    texto: textoLinha,
+    inicio: indice * intervalo,
+    fim: (indice + 1) * intervalo
+  }));
 
-    const diferenca = novoFim - item.fim;
+  desenharLista();
 
-    if (Math.abs(diferenca) < 0.001) {
-        desenharLista();
-        return;
-    }
+  mensagem(
+    duracao > 0
+      ? "Legendas criadas. Ajuste os tempos conforme a música."
+      : "Legendas criadas com tempos provisórios de 4 segundos. Importe o áudio para sincronizar."
+  );
+}
 
-    item.fim = novoFim;
+$("criarLinhas").addEventListener("click", criarLinhas);
 
-    legendas.forEach(l => {
-        if (l.index > index) {
-            l.inicio = Math.max(0, l.inicio + diferenca);
-            l.fim = Math.max(l.inicio, l.fim + diferenca);
-        }
+function marcarTempoAtual() {
+  const seletor = $("linhaSelecionada");
+  const indice = Number(seletor.value);
+
+  if (seletor.value === "" || !legendas[indice]) {
+    mensagem("Selecione uma legenda antes de marcar o tempo.");
+    return;
+  }
+
+  alterarInicio(indice, audio.currentTime);
+
+  seletor.value = String(indice);
+  mensagem("Início da legenda marcado em " + fmtTempo(audio.currentTime) + ".");
+}
+
+$("marcarTempo").addEventListener("click", marcarTempoAtual);
+
+function desenharLista() {
+  const lista = $("listaLegendas");
+  const seletor = $("linhaSelecionada");
+  const valorAnterior = seletor.value;
+
+  lista.replaceChildren();
+  seletor.replaceChildren();
+
+  if (!legendas.length) {
+    const vazio = document.createElement("p");
+    vazio.className = "muted";
+    vazio.textContent = "Crie as legendas para começar.";
+    lista.appendChild(vazio);
+
+    const opcao = document.createElement("option");
+    opcao.value = "";
+    opcao.textContent = "Nenhuma legenda disponível";
+    seletor.appendChild(opcao);
+
+    $("contadorLegendas").textContent = "0 LINHAS";
+    return;
+  }
+
+  $("contadorLegendas").textContent =
+    legendas.length + (legendas.length === 1 ? " LINHA" : " LINHAS");
+
+  legendas.forEach((legenda, indice) => {
+    const opcao = document.createElement("option");
+    opcao.value = String(indice);
+    opcao.textContent = `${indice + 1}. ${legenda.texto}`;
+    seletor.appendChild(opcao);
+
+    const linha = document.createElement("article");
+    linha.className = "lyric-row";
+    linha.dataset.indice = String(indice);
+
+    const titulo = document.createElement("label");
+    titulo.textContent = `Legenda ${indice + 1}`;
+
+    const campoTexto = document.createElement("input");
+    campoTexto.type = "text";
+    campoTexto.value = legenda.texto;
+    campoTexto.setAttribute("aria-label", `Texto da legenda ${indice + 1}`);
+
+    campoTexto.addEventListener("change", () => {
+      legenda.texto = campoTexto.value;
+      desenharLista();
     });
 
-    recalcularFins();
-    desenharLista();
+    const tempos = document.createElement("div");
+    tempos.className = "time-fields";
 
-    mensagem(
-        "Final atualizado. Os horários seguintes foram ajustados."
-    );
-}
+    const grupoInicio = document.createElement("div");
+    const rotuloInicio = document.createElement("label");
+    rotuloInicio.textContent = "Início (segundos)";
 
-// Identifica a legenda que deve aparecer no instante atual.
+    const campoInicio = document.createElement("input");
+    campoInicio.type = "number";
+    campoInicio.min = "0";
+    campoInicio.step = "0.01";
+    campoInicio.value = legenda.inicio.toFixed(2);
+    campoInicio.setAttribute("aria-label", `Início da legenda ${indice + 1}`);
 
-function linhaAtiva() {
-    const t = audio.currentTime;
-
-    const ordenadas = [...legendas].sort(
-        (a, b) => a.inicio - b.inicio || a.index - b.index
-    );
-
-    let ativa = null;
-
-    for (const item of ordenadas) {
-        if (t >= item.inicio) {
-            ativa = item;
-        } else {
-            break;
-        }
-    }
-
-    if (!ativa) return null;
-
-    if (t < ativa.inicio || t >= ativa.fim) return null;
-
-    return ativa;
-}
-
-/* =========================================================
-   DESENHO DO VÍDEO
-========================================================= */
-
-function desenharTexto(texto, x, y, maxLargura, tamanho) {
-    const palavras = texto.split(/\s+/);
-    const linhas = [];
-    let linha = "";
-
-    for (const palavra of palavras) {
-        const teste = linha ? linha + " " + palavra : palavra;
-
-        if (ctx.measureText(teste).width > maxLargura && linha) {
-            linhas.push(linha);
-            linha = palavra;
-        } else {
-            linha = teste;
-        }
-    }
-
-    if (linha) linhas.push(linha);
-
-    const altura = tamanho * 1.3;
-    const total = linhas.length * altura;
-
-    linhas.forEach((textoLinha, i) => {
-        ctx.fillText(
-            textoLinha,
-            x,
-            y - total / 2 + i * altura + altura / 2
-        );
+    campoInicio.addEventListener("change", () => {
+      alterarInicio(indice, campoInicio.value);
     });
-}
 
-function renderizar() {
-    const w = canvas.width;
-    const h = canvas.height;
+    grupoInicio.append(rotuloInicio, campoInicio);
 
-    const fundo = $("corFundo").value;
-    const corTexto = $("corTexto").value;
-    const destaque = $("corDestaque").value;
-    const tamanho = Number($("tamanhoTexto").value);
-    const posicao = $("posicaoTexto").value;
+    const grupoFim = document.createElement("div");
+    const rotuloFim = document.createElement("label");
+    rotuloFim.textContent = "Fim (segundos)";
 
-    ctx.fillStyle = fundo;
-    ctx.fillRect(0, 0, w, h);
+    const campoFim = document.createElement("input");
+    campoFim.type = "number";
+    campoFim.min = "0";
+    campoFim.step = "0.01";
+    campoFim.value = legenda.fim.toFixed(2);
+    campoFim.setAttribute("aria-label", `Fim da legenda ${indice + 1}`);
 
-    const t = audio.currentTime;
-    const atual = linhaAtiva();
+    campoFim.addEventListener("change", () => {
+      alterarFim(indice, campoFim.value);
+    });
 
-    // Visualizador de áudio.
+    grupoFim.append(rotuloFim, campoFim);
+    tempos.append(grupoInicio, grupoFim);
 
-    if ($("mostrarAudio").checked && analyser && audioContext) {
-        const dados = new Uint8Array(analyser.frequencyBinCount);
+    const botoes = document.createElement("div");
+    botoes.className = "button-row";
 
-        analyser.getByteFrequencyData(dados);
+    const ouvir = document.createElement("button");
+    ouvir.type = "button";
+    ouvir.className = "secondary";
+    ouvir.textContent = "▶ Ouvir a partir desta linha";
 
-        const barras = 48;
-        const largura = w * 0.76 / barras;
-        const espacamento = largura * 0.25;
-        const xInicial = (w - barras * largura) / 2;
+    ouvir.addEventListener("click", async () => {
+      if (!audio.src) {
+        mensagem("Importe uma música antes de ouvir a legenda.");
+        return;
+      }
 
-        for (let i = 0; i < barras; i++) {
-            const indice = Math.floor(i * dados.length / barras);
-            const valor = dados[indice] / 255;
-            const altura = Math.max(5, valor * h * 0.09);
+      audio.currentTime = legenda.inicio;
 
-            const x = xInicial + i * largura;
-            const y = h * 0.22 - altura / 2;
+      try {
+        await audio.play();
+      } catch (erro) {
+        console.error(erro);
+        mensagem("Não foi possível reproduzir o áudio.");
+      }
+    });
 
-            ctx.fillStyle = destaque;
-            ctx.globalAlpha = 0.35 + valor * 0.65;
+    const excluir = document.createElement("button");
+    excluir.type = "button";
+    excluir.className = "danger";
+    excluir.textContent = "Excluir";
 
-            ctx.fillRect(
-                x,
-                y,
-                Math.max(2, largura - espacamento),
-                altura
-            );
-        }
+    excluir.addEventListener("click", () => {
+      legendas.splice(indice, 1);
+      legendas.forEach((item, i) => {
+        item.id = i + 1;
+      });
 
-        ctx.globalAlpha = 1;
-    }
+      desenharLista();
+    });
 
-    // Legenda atual.
+    botoes.append(ouvir, excluir);
+    linha.append(titulo, campoTexto, tempos, botoes);
+    lista.appendChild(linha);
+  });
 
-    if (atual) {
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.font = `bold ${tamanho}px Arial, sans-serif`;
-        ctx.lineJoin = "round";
-        ctx.lineWidth = Math.max(3, tamanho / 12);
-        ctx.strokeStyle = "rgba(0,0,0,0.75)";
-        ctx.fillStyle = corTexto;
+  if (valorAnterior !== "" && legendas[Number(valorAnterior)]) {
+    seletor.value = valorAnterior;
+  } else {
+    seletor.value = "0";
+  }
 
-        let y;
-
-        if (posicao === "top") {
-            y = h * 0.22;
-        } else if (posicao === "bottom") {
-            y = h * 0.78;
-        } else {
-            y = h * 0.53;
-        }
-
-        desenharTexto(
-            atual.texto,
-            w / 2,
-            y,
-            w * 0.84,
-            tamanho
-        );
-    } else {
-        ctx.fillStyle = corTexto;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.globalAlpha = 0.65;
-        ctx.font = `bold ${Math.max(22, tamanho * 0.7)}px Arial`;
-        ctx.fillText("LYRIC STUDIO", w / 2, h / 2);
-        ctx.globalAlpha = 1;
-    }
-
-    // Barra de progresso.
-
-    if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        const progresso = t / audio.duration;
-
-        ctx.fillStyle = "rgba(255,255,255,0.22)";
-        ctx.fillRect(0, h - 8, w, 8);
-
-        ctx.fillStyle = destaque;
-        ctx.fillRect(0, h - 8, w * progresso, 8);
-    }
-
-    $("tempoAtual").textContent = fmt(t);
-
-    if (Number.isFinite(audio.duration)) {
-        $("duracao").textContent = fmt(audio.duration);
-
-        $("seek").value = audio.duration
-            ? t / audio.duration * 100
-            : 0;
-    }
-
-    atualizarLinhasAtivas();
-
-    animacao = requestAnimationFrame(renderizar);
+  atualizarLinhasAtivas();
 }
 
 function atualizarLinhasAtivas() {
-    const ativa = linhaAtiva();
+  const tempo = audio.currentTime;
 
-    document.querySelectorAll(".lyric-row").forEach(el => {
-        el.classList.toggle(
-            "active",
-            !!ativa && Number(el.dataset.index) === ativa.index
-        );
-    });
+  document.querySelectorAll(".lyric-row").forEach(elemento => {
+    const indice = Number(elemento.dataset.indice);
+    const legenda = legendas[indice];
 
-    if (ativa &&
-        $("linhaSelecionada").value !== String(ativa.index)) {
-        $("linhaSelecionada").value = String(ativa.index);
-    }
+    elemento.classList.toggle(
+      "is-active",
+      Boolean(
+        legenda &&
+        tempo >= legenda.inicio &&
+        tempo < legenda.fim
+      )
+    );
+  });
 }
+
+/* =========================================================
+   CONFIGURAÇÕES VISUAIS
+========================================================= */
 
 function configurarFormato() {
-    if ($("formato").value === "vertical") {
-        canvas.width = 720;
-        canvas.height = 1280;
-        $("resolucao").textContent = "720 × 1280";
-    } else {
-        canvas.width = 1280;
-        canvas.height = 720;
-        $("resolucao").textContent = "1280 × 720";
-    }
+  const formato = $("formato").value;
+
+  if (formato === "horizontal") {
+    canvas.width = 1280;
+    canvas.height = 720;
+    $("resolucao").textContent = "1280 × 720";
+    $("proporcao").textContent = "16:9 · Horizontal";
+  } else {
+    canvas.width = 720;
+    canvas.height = 1280;
+    $("resolucao").textContent = "720 × 1280";
+    $("proporcao").textContent = "9:16 · Vertical";
+  }
+
+  elementosVisuais.forEach(elemento => {
+    elemento.x = limitar(elemento.x, 0, canvas.width);
+    elemento.y = limitar(elemento.y, 0, canvas.height);
+  });
 }
 
-/* =========================================================
-   CRIAÇÃO DAS LINHAS
-========================================================= */
+$("formato").addEventListener("change", configurarFormato);
 
-function criarLinhas() {
-    const textos = $("letra").value
-        .split(/\r?\n/)
-        .map(t => t.trim())
-        .filter(Boolean);
+$("tamanhoTexto").addEventListener("input", () => {
+  $("valorTamanho").textContent = $("tamanhoTexto").value + " px";
+});
 
-    if (!textos.length) {
-        mensagem("Cole a letra antes de criar as linhas.");
-        return;
-    }
-
-    const duracao = Number.isFinite(audio.duration) &&
-        audio.duration > 0
-        ? audio.duration
-        : 0;
-
-    legendas = textos.map((texto, index) => {
-        const inicio = duracao
-            ? index * duracao / textos.length
-            : index * 4;
-
-        const fim = duracao
-            ? (index + 1) * duracao / textos.length
-            : (index + 1) * 4;
-
-        return {
-            index,
-            texto,
-            inicio,
-            fim
-        };
-    });
-
-    desenharLista();
-
-    mensagem(
-        "Linhas criadas. Edite os horários ou sincronize durante a reprodução."
-    );
-}
+[
+  "corFundo",
+  "corTexto",
+  "corDestaque",
+  "tamanhoTexto",
+  "posicaoTexto",
+  "mostrarAudio"
+].forEach(id => {
+  $(id).addEventListener("input", () => {});
+});
 
 /* =========================================================
-   LISTA EDITÁVEL DE LEGENDAS
-========================================================= */
-
-function desenharLista() {
-    const lista = $("listaLegendas");
-    const seletor = $("linhaSelecionada");
-
-    lista.replaceChildren();
-    seletor.replaceChildren();
-
-    legendas.sort((a, b) => a.index - b.index);
-
-    legendas.forEach(item => {
-        const opt = document.createElement("option");
-
-        opt.value = String(item.index);
-        opt.textContent = `${item.index + 1}. ${item.texto}`;
-
-        seletor.appendChild(opt);
-
-        const row = document.createElement("div");
-
-        row.className = "lyric-row";
-        row.dataset.index = String(item.index);
-
-        const texto = document.createElement("div");
-
-        texto.className = "lyric-text";
-        texto.textContent = `${item.index + 1}. ${item.texto}`;
-
-        const campos = document.createElement("div");
-        campos.className = "time-fields";
-
-        const labelInicio = document.createElement("label");
-        labelInicio.textContent = "Início (mm:ss)";
-
-        const inicio = document.createElement("input");
-
-        inicio.type = "text";
-        inicio.inputMode = "decimal";
-        inicio.placeholder = "00:00.0";
-        inicio.value = fmtTempo(item.inicio);
-        inicio.setAttribute(
-            "aria-label",
-            "Horário de início em minutos e segundos"
-        );
-
-        labelInicio.appendChild(inicio);
-
-        const labelFim = document.createElement("label");
-        labelFim.textContent = "Fim (mm:ss)";
-
-        const fim = document.createElement("input");
-
-        fim.type = "text";
-        fim.inputMode = "decimal";
-        fim.placeholder = "00:00.0";
-        fim.value = fmtTempo(item.fim);
-        fim.setAttribute(
-            "aria-label",
-            "Horário de fim em minutos e segundos"
-        );
-
-        labelFim.appendChild(fim);
-
-        campos.append(labelInicio, labelFim);
-
-        inicio.addEventListener("change", () => {
-            alterarInicio(item.index, inicio.value);
-        });
-
-        fim.addEventListener("change", () => {
-            alterarFim(item.index, fim.value);
-        });
-
-        const ir = document.createElement("button");
-
-        ir.className = "secondary";
-        ir.textContent = "Ouvir a partir desta linha";
-
-        ir.addEventListener("click", () => {
-            audio.currentTime = item.inicio;
-            seletor.value = String(item.index);
-
-            audio.play().catch(() => {
-                mensagem("Não foi possível reproduzir o áudio.");
-            });
-        });
-
-        row.append(texto, campos, ir);
-        lista.appendChild(row);
-    });
-
-    if (!legendas.length) {
-        const vazio = document.createElement("p");
-
-        vazio.className = "muted";
-        vazio.textContent = "Nenhuma linha criada.";
-
-        lista.appendChild(vazio);
-    }
-
-    atualizarLinhasAtivas();
-}
-
-/* =========================================================
-   MARCAR O TEMPO DURANTE A REPRODUÇÃO
-========================================================= */
-
-function marcarTempoAtual() {
-    const valor = $("linhaSelecionada").value;
-
-    if (valor === "") {
-        mensagem("Selecione uma linha para sincronizar.");
-        return;
-    }
-
-    const index = Number(valor);
-    const item = legendas.find(l => l.index === index);
-
-    if (!item) return;
-
-    alterarInicio(index, audio.currentTime);
-
-    const proxima = legendas.find(l => l.index === index + 1);
-
-    if (proxima) {
-        $("linhaSelecionada").value = String(proxima.index);
-    }
-
-    mensagem(
-        `Linha ${index + 1} sincronizada em ${fmtTempo(audio.currentTime)}.`
-    );
-}
-
-/* =========================================================
-   ÁUDIO E VISUALIZADOR
+   VISUALIZAÇÃO DO ÁUDIO
 ========================================================= */
 
 function obterAudioGraph() {
-    if (audioContext) return;
+  if (audioContext) return;
 
-    audioContext = new AudioContext();
+  const AudioContextClass =
+    window.AudioContext || window.webkitAudioContext;
 
-    sourceNode = audioContext.createMediaElementSource(audio);
-    audioDestination = audioContext.createMediaStreamDestination();
+  if (!AudioContextClass) {
+    throw new Error("Este navegador não oferece suporte à Web Audio API.");
+  }
 
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 128;
+  audioContext = new AudioContextClass();
 
-    sourceNode.connect(analyser);
+  sourceNode = audioContext.createMediaElementSource(audio);
+  analyser = audioContext.createAnalyser();
+  audioDestination = audioContext.createMediaStreamDestination();
 
-    analyser.connect(audioContext.destination);
-    analyser.connect(audioDestination);
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.8;
+
+  sourceNode.connect(analyser);
+  analyser.connect(audioContext.destination);
+  analyser.connect(audioDestination);
+}
+
+function desenharVisualizador() {
+  if (!$("mostrarAudio").checked || !analyser) return;
+
+  const quantidade = 36;
+  const dados = new Uint8Array(analyser.frequencyBinCount);
+
+  analyser.getByteFrequencyData(dados);
+
+  const larguraTotal = canvas.width * 0.76;
+  const larguraBarra = larguraTotal / quantidade * 0.55;
+  const espaco = larguraTotal / quantidade;
+  const inicioX = (canvas.width - larguraTotal) / 2;
+  const baseY = canvas.height * 0.87;
+  const alturaMaxima = canvas.height * 0.055;
+
+  ctx.fillStyle = $("corDestaque").value;
+
+  for (let i = 0; i < quantidade; i++) {
+    const valor = dados[i] || 0;
+    const altura = Math.max(3, (valor / 255) * alturaMaxima);
+    const x = inicioX + i * espaco;
+
+    ctx.globalAlpha = 0.35 + (valor / 255) * 0.65;
+    ctx.fillRect(x, baseY - altura, larguraBarra, altura);
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+/* =========================================================
+   DESENHO DAS LEGENDAS
+========================================================= */
+
+function desenharTexto() {
+  const legenda = linhaAtiva();
+
+  if (!legenda) return;
+
+  const tamanho = Number($("tamanhoTexto").value) || 42;
+  const corTexto = $("corTexto").value;
+  const corDestaque = $("corDestaque").value;
+
+  const escala = canvas.width / 720;
+  const tamanhoReal = tamanho * escala;
+
+  ctx.save();
+
+  ctx.font = `700 ${tamanhoReal}px Arial, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+
+  const margem = canvas.width * 0.09;
+  const larguraMaxima = canvas.width - margem * 2;
+
+  const palavras = legenda.texto.split(/\s+/);
+  const linhasTexto = [];
+  let linhaAtual = "";
+
+  palavras.forEach(palavra => {
+    const teste = linhaAtual ? `${linhaAtual} ${palavra}` : palavra;
+
+    if (
+      ctx.measureText(teste).width > larguraMaxima &&
+      linhaAtual
+    ) {
+      linhasTexto.push(linhaAtual);
+      linhaAtual = palavra;
+    } else {
+      linhaAtual = teste;
+    }
+  });
+
+  if (linhaAtual) {
+    linhasTexto.push(linhaAtual);
+  }
+
+  const alturaLinha = tamanhoReal * 1.25;
+  const alturaBloco = linhasTexto.length * alturaLinha;
+
+  let centroY;
+
+  switch ($("posicaoTexto").value) {
+    case "alto":
+      centroY = canvas.height * 0.22;
+      break;
+
+    case "baixo":
+      centroY = canvas.height * 0.74;
+      break;
+
+    default:
+      centroY = canvas.height * 0.5;
+  }
+
+  const inicioY = centroY - alturaBloco / 2 + alturaLinha / 2;
+
+  linhasTexto.forEach((texto, indice) => {
+    const y = inicioY + indice * alturaLinha;
+
+    ctx.lineWidth = Math.max(2, tamanhoReal * 0.09);
+    ctx.strokeStyle = "rgba(0,0,0,0.8)";
+    ctx.strokeText(texto, canvas.width / 2, y, larguraMaxima);
+
+    ctx.fillStyle = corTexto;
+    ctx.fillText(texto, canvas.width / 2, y, larguraMaxima);
+  });
+
+  ctx.restore();
+}
+
+/* =========================================================
+   IMAGENS E FIGURINHAS
+========================================================= */
+
+function imagemSelecionada() {
+  return elementosVisuais.find(
+    elemento => elemento.id === elementoSelecionado
+  ) || null;
+}
+
+function atualizarControlesImagem() {
+  const elemento = imagemSelecionada();
+  const possuiSelecao = Boolean(elemento);
+
+  $("tamanhoImagem").disabled = !possuiSelecao;
+  $("rotacaoImagem").disabled = !possuiSelecao;
+  $("centralizarImagem").disabled = !possuiSelecao;
+  $("excluirImagem").disabled = !possuiSelecao;
+
+  if (!elemento) {
+    $("valorTamanhoImagem").textContent = "100%";
+    $("valorRotacaoImagem").textContent = "0°";
+    $("estadoImagem").textContent =
+      "Selecione uma imagem para habilitar os controles.";
+
+    canvas.classList.remove("has-selection", "is-dragging");
+    return;
+  }
+
+  $("tamanhoImagem").value = String(elemento.escala * 100);
+  $("rotacaoImagem").value = String(elemento.rotacao);
+
+  $("valorTamanhoImagem").textContent =
+    Math.round(elemento.escala * 100) + "%";
+
+  $("valorRotacaoImagem").textContent =
+    Math.round(elemento.rotacao) + "°";
+
+  $("estadoImagem").textContent =
+    "Imagem selecionada. Arraste-a na prévia para reposicionar.";
+
+  canvas.classList.add("has-selection");
+}
+
+function adicionarImagem(arquivo) {
+  if (!arquivo) return;
+
+  const tiposPermitidos = [
+    "image/png",
+    "image/jpeg",
+    "image/webp"
+  ];
+
+  if (!tiposPermitidos.includes(arquivo.type)) {
+    mensagem("Escolha uma imagem PNG, JPG ou WebP.");
+    return;
+  }
+
+  const url = URL.createObjectURL(arquivo);
+  const imagem = new Image();
+
+  imagem.onload = () => {
+    const limiteLargura = canvas.width * 0.42;
+    const limiteAltura = canvas.height * 0.42;
+
+    const fator = Math.min(
+      limiteLargura / imagem.naturalWidth,
+      limiteAltura / imagem.naturalHeight,
+      1
+    );
+
+    const elemento = {
+      id: proximoIdElemento++,
+      nome: arquivo.name,
+      url,
+      imagem,
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      larguraOriginal: imagem.naturalWidth * fator,
+      alturaOriginal: imagem.naturalHeight * fator,
+      escala: 1,
+      rotacao: 0
+    };
+
+    elementosVisuais.push(elemento);
+    elementoSelecionado = elemento.id;
+
+    $("nomeImagem").textContent = arquivo.name;
+
+    atualizarControlesImagem();
+    mensagem("Imagem adicionada. Arraste-a para a posição desejada.");
+  };
+
+  imagem.onerror = () => {
+    URL.revokeObjectURL(url);
+    mensagem("Não foi possível carregar essa imagem.");
+  };
+
+  imagem.src = url;
+}
+
+$("arquivoImagem").addEventListener("change", evento => {
+  const arquivo = evento.target.files?.[0];
+
+  if (arquivo) {
+    adicionarImagem(arquivo);
+  }
+
+  evento.target.value = "";
+});
+
+function desenharElementoVisual(elemento) {
+  const largura = elemento.larguraOriginal * elemento.escala;
+  const altura = elemento.alturaOriginal * elemento.escala;
+
+  ctx.save();
+  ctx.translate(elemento.x, elemento.y);
+  ctx.rotate(elemento.rotacao * Math.PI / 180);
+
+  ctx.drawImage(
+    elemento.imagem,
+    -largura / 2,
+    -altura / 2,
+    largura,
+    altura
+  );
+
+  /*
+   * A moldura de seleção é apenas uma ajuda visual do editor.
+   * Ela não aparece no vídeo exportado.
+   */
+  if (!exportando && elemento.id === elementoSelecionado) {
+    ctx.strokeStyle = "#80f2b5";
+    ctx.lineWidth = Math.max(2, canvas.width / 360);
+    ctx.setLineDash([
+      Math.max(5, canvas.width / 100),
+      Math.max(4, canvas.width / 150)
+    ]);
+
+    ctx.strokeRect(
+      -largura / 2,
+      -altura / 2,
+      largura,
+      altura
+    );
+
+    ctx.setLineDash([]);
+
+    const tamanhoAlca = Math.max(7, canvas.width / 75);
+
+    ctx.fillStyle = "#80f2b5";
+
+    [
+      [-largura / 2, -altura / 2],
+      [largura / 2, -altura / 2],
+      [-largura / 2, altura / 2],
+      [largura / 2, altura / 2]
+    ].forEach(([x, y]) => {
+      ctx.fillRect(
+        x - tamanhoAlca / 2,
+        y - tamanhoAlca / 2,
+        tamanhoAlca,
+        tamanhoAlca
+      );
+    });
+  }
+
+  ctx.restore();
+}
+
+function obterCoordenadasCanvas(evento) {
+  const retangulo = canvas.getBoundingClientRect();
+
+  return {
+    x: (evento.clientX - retangulo.left) * canvas.width / retangulo.width,
+    y: (evento.clientY - retangulo.top) * canvas.height / retangulo.height
+  };
+}
+
+function pontoDentroElemento(x, y, elemento) {
+  const dx = x - elemento.x;
+  const dy = y - elemento.y;
+
+  const angulo = -elemento.rotacao * Math.PI / 180;
+
+  const localX = dx * Math.cos(angulo) - dy * Math.sin(angulo);
+  const localY = dx * Math.sin(angulo) + dy * Math.cos(angulo);
+
+  const largura = elemento.larguraOriginal * elemento.escala;
+  const altura = elemento.alturaOriginal * elemento.escala;
+
+  return (
+    Math.abs(localX) <= largura / 2 &&
+    Math.abs(localY) <= altura / 2
+  );
+}
+
+function localizarElemento(x, y) {
+  /*
+   * Elementos mais recentes são verificados primeiro,
+   * pois aparecem por cima dos anteriores.
+   */
+  for (let i = elementosVisuais.length - 1; i >= 0; i--) {
+    if (pontoDentroElemento(x, y, elementosVisuais[i])) {
+      return elementosVisuais[i];
+    }
+  }
+
+  return null;
+}
+
+canvas.addEventListener("pointerdown", evento => {
+  const ponto = obterCoordenadasCanvas(evento);
+  const elemento = localizarElemento(ponto.x, ponto.y);
+
+  if (!elemento) {
+    elementoSelecionado = null;
+    arrasteElemento = null;
+    atualizarControlesImagem();
+    return;
+  }
+
+  evento.preventDefault();
+
+  elementoSelecionado = elemento.id;
+
+  arrasteElemento = {
+    id: elemento.id,
+    deslocamentoX: ponto.x - elemento.x,
+    deslocamentoY: ponto.y - elemento.y,
+    pointerId: evento.pointerId
+  };
+
+  try {
+    canvas.setPointerCapture(evento.pointerId);
+  } catch (_) {}
+
+  atualizarControlesImagem();
+});
+
+canvas.addEventListener("pointermove", evento => {
+  if (!arrasteElemento) return;
+
+  if (evento.pointerId !== arrasteElemento.pointerId) return;
+
+  evento.preventDefault();
+
+  const elemento = imagemSelecionada();
+
+  if (!elemento) return;
+
+  const ponto = obterCoordenadasCanvas(evento);
+
+  elemento.x = limitar(
+    ponto.x - arrasteElemento.deslocamentoX,
+    0,
+    canvas.width
+  );
+
+  elemento.y = limitar(
+    ponto.y - arrasteElemento.deslocamentoY,
+    0,
+    canvas.height
+  );
+
+  canvas.classList.add("is-dragging");
+});
+
+function terminarArraste(evento) {
+  if (
+    arrasteElemento &&
+    evento &&
+    evento.pointerId !== arrasteElemento.pointerId
+  ) {
+    return;
+  }
+
+  arrasteElemento = null;
+  canvas.classList.remove("is-dragging");
+
+  try {
+    if (evento && canvas.hasPointerCapture(evento.pointerId)) {
+      canvas.releasePointerCapture(evento.pointerId);
+    }
+  } catch (_) {}
+}
+
+canvas.addEventListener("pointerup", terminarArraste);
+canvas.addEventListener("pointercancel", terminarArraste);
+canvas.addEventListener("lostpointercapture", () => {
+  arrasteElemento = null;
+  canvas.classList.remove("is-dragging");
+});
+
+$("tamanhoImagem").addEventListener("input", evento => {
+  const elemento = imagemSelecionada();
+
+  if (!elemento) return;
+
+  elemento.escala = Number(evento.target.value) / 100;
+
+  $("valorTamanhoImagem").textContent =
+    evento.target.value + "%";
+});
+
+$("rotacaoImagem").addEventListener("input", evento => {
+  const elemento = imagemSelecionada();
+
+  if (!elemento) return;
+
+  elemento.rotacao = Number(evento.target.value);
+
+  $("valorRotacaoImagem").textContent =
+    elemento.rotacao + "°";
+});
+
+$("centralizarImagem").addEventListener("click", () => {
+  const elemento = imagemSelecionada();
+
+  if (!elemento) return;
+
+  elemento.x = canvas.width / 2;
+  elemento.y = canvas.height / 2;
+
+  atualizarControlesImagem();
+});
+
+$("excluirImagem").addEventListener("click", () => {
+  const elemento = imagemSelecionada();
+
+  if (!elemento) return;
+
+  elementosVisuais = elementosVisuais.filter(
+    item => item.id !== elemento.id
+  );
+
+  URL.revokeObjectURL(elemento.url);
+  elementoSelecionado = null;
+
+  $("nomeImagem").textContent = elementosVisuais.length
+    ? `${elementosVisuais.length} imagem(ns) no projeto`
+    : "Nenhuma imagem adicionada.";
+
+  atualizarControlesImagem();
+  mensagem("Imagem removida.");
+});
+
+/* =========================================================
+   RENDERIZAÇÃO DA PRÉVIA
+========================================================= */
+
+function renderizar() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = $("corFundo").value;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  desenharVisualizador();
+  desenharTexto();
+
+  /*
+   * As imagens são desenhadas a cada quadro.
+   * Por isso, também aparecem na gravação do canvas.
+   */
+  elementosVisuais.forEach(desenharElementoVisual);
+
+  const progresso = duracaoAudio() > 0
+    ? audio.currentTime / duracaoAudio()
+    : 0;
+
+  const margem = canvas.width * 0.08;
+  const largura = canvas.width - margem * 2;
+  const y = canvas.height * 0.94;
+  const altura = Math.max(3, canvas.width / 240);
+
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
+  ctx.fillRect(margem, y, largura, altura);
+
+  ctx.fillStyle = $("corDestaque").value;
+  ctx.fillRect(
+    margem,
+    y,
+    largura * limitar(progresso, 0, 1),
+    altura
+  );
+
+  /*
+   * As indicações de seleção não são gravadas no vídeo.
+   */
+  if (!exportando && !linhaAtiva() && !elementosVisuais.length) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.font = `600 ${canvas.width * 0.035}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      "LYRIC STUDIO",
+      canvas.width / 2,
+      canvas.height / 2
+    );
+    ctx.restore();
+  }
+
+  atualizarLinhasAtivas();
+
+  animacao = requestAnimationFrame(renderizar);
 }
 
 /* =========================================================
    EXPORTAÇÃO DO VÍDEO
 ========================================================= */
 
-async function exportarVideo() {
-    if (!audio.src || !Number.isFinite(audio.duration) ||
-        audio.duration <= 0) {
-        mensagem("Importe uma música válida antes de exportar.");
-        return;
-    }
+function escolherTipoGravacao() {
+  if (!window.MediaRecorder) return "";
 
-    if (!legendas.length) {
-        mensagem("Crie as linhas da legenda antes de exportar.");
-        return;
-    }
+  const tipos = [
+    "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm"
+  ];
 
-    if (!window.MediaRecorder || !canvas.captureStream) {
-        mensagem(
-            "Este navegador não oferece os recursos necessários para exportar."
-        );
-        return;
-    }
-
+  return tipos.find(tipo => {
     try {
-        obterAudioGraph();
-        await audioContext.resume();
-
-        const tipos = [
-            "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
-            "video/mp4",
-            "video/webm;codecs=vp9,opus",
-            "video/webm;codecs=vp8,opus",
-            "video/webm"
-        ];
-
-        const tipo = tipos.find(t =>
-            MediaRecorder.isTypeSupported(t)
-        );
-
-        if (!tipo) {
-            mensagem("Nenhum formato de vídeo compatível foi encontrado.");
-            return;
-        }
-
-        const videoStream = canvas.captureStream(30);
-
-        const stream = new MediaStream([
-            ...videoStream.getVideoTracks(),
-            ...audioDestination.stream.getAudioTracks()
-        ]);
-
-        chunks = [];
-
-        recorder = new MediaRecorder(stream, {
-            mimeType: tipo,
-            videoBitsPerSecond: 4000000,
-            audioBitsPerSecond: 192000
-        });
-
-        recorder.ondataavailable = e => {
-            if (e.data && e.data.size > 0) {
-                chunks.push(e.data);
-            }
-        };
-
-        recorder.onerror = e => {
-            mensagem(
-                "Erro durante a exportação: " +
-                (e.error?.message || "erro desconhecido")
-            );
-        };
-
-        recorder.onstop = () => {
-            const blob = new Blob(chunks, {
-                type: recorder.mimeType
-            });
-
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-
-            const extensao = recorder.mimeType.includes("mp4")
-                ? "mp4"
-                : "webm";
-
-            a.href = url;
-            a.download = `lyric-studio.${extensao}`;
-
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-
-            setTimeout(() => URL.revokeObjectURL(url), 60000);
-
-            videoStream.getTracks().forEach(track => track.stop());
-
-            exportando = false;
-
-            $("exportar").disabled = false;
-            $("pararExportacao").disabled = true;
-
-            mensagem(`Exportação concluída: ${extensao.toUpperCase()}.`);
-        };
-
-        audio.currentTime = 0;
-
-        recorder.start(1000);
-
-        exportando = true;
-
-        $("exportar").disabled = true;
-        $("pararExportacao").disabled = false;
-
-        audio.onended = () => {
-            if (exportando && recorder?.state !== "inactive") {
-                recorder.stop();
-            }
-        };
-
-        await audio.play();
-
-        mensagem(
-            "Gravando o vídeo. Aguarde a música terminar sem fechar a página."
-        );
-    } catch (erro) {
-        exportando = false;
-
-        $("exportar").disabled = false;
-        $("pararExportacao").disabled = true;
-
-        mensagem("Não foi possível exportar: " + erro.message);
+      return MediaRecorder.isTypeSupported(tipo);
+    } catch (_) {
+      return false;
     }
+  }) || "";
 }
 
-/* =========================================================
-   EVENTOS
-========================================================= */
+async function exportarVideo() {
+  if (!audio.src) {
+    mensagem("Importe uma música antes de exportar.");
+    return;
+  }
 
-// Importar áudio.
+  if (exportando) {
+    mensagem("A exportação já está em andamento.");
+    return;
+  }
 
-$("arquivoAudio").addEventListener("change", e => {
-    const file = e.target.files[0];
-
-    if (!file) return;
-
-    if (arquivoURL) {
-        URL.revokeObjectURL(arquivoURL);
-    }
-
-    arquivoURL = URL.createObjectURL(file);
-
-    audio.src = arquivoURL;
-    $("nomeAudio").textContent = file.name;
-
-    mensagem("Áudio carregado. Agora cole a letra.");
-
-    audio.load();
-});
-
-// Atualizar duração e validar os tempos quando o áudio carregar.
-
-audio.addEventListener("loadedmetadata", () => {
-    $("duracao").textContent = fmt(audio.duration);
-
-    if (legendas.length) {
-        recalcularFins();
-        desenharLista();
-    }
-});
-
-// Reprodução e pausa.
-
-$("playPause").addEventListener("click", async () => {
-    if (!audio.src) {
-        mensagem("Importe uma música primeiro.");
-        return;
-    }
-
-    try {
-        if (audio.paused) {
-            await audio.play();
-        } else {
-            audio.pause();
-        }
-    } catch (erro) {
-        mensagem("Não foi possível reproduzir: " + erro.message);
-    }
-});
-
-audio.addEventListener("play", () => {
-    $("playPause").textContent = "❚❚ Pausar";
-});
-
-audio.addEventListener("pause", () => {
-    $("playPause").textContent = "▶ Reproduzir";
-});
-
-$("voltar").addEventListener("click", () => {
-    audio.currentTime = Math.max(0, audio.currentTime - 5);
-});
-
-$("avancar").addEventListener("click", () => {
-    audio.currentTime = Math.min(
-        audio.duration || 0,
-        audio.currentTime + 5
+  if (!canvas.captureStream || !window.MediaRecorder) {
+    mensagem(
+      "Este navegador não oferece suporte à gravação do vídeo. Tente usar uma versão atualizada do Chrome ou Edge."
     );
-});
+    return;
+  }
 
-// Navegar pela música.
+  let streamCanvas;
 
-$("seek").addEventListener("input", () => {
-    if (audio.duration) {
-        audio.currentTime =
-            Number($("seek").value) / 100 * audio.duration;
+  try {
+    obterAudioGraph();
+
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
     }
-});
 
-// Legendas.
+    const tipo = escolherTipoGravacao();
 
-$("criarLinhas").addEventListener("click", criarLinhas);
+    if (!tipo) {
+      mensagem(
+        "Não foi encontrado um formato de gravação compatível neste navegador."
+      );
+      return;
+    }
 
-$("marcarTempo").addEventListener("click", marcarTempoAtual);
+    streamCanvas = canvas.captureStream(30);
 
-// Formato do vídeo.
+    const faixasAudio =
+      audioDestination.stream.getAudioTracks();
 
-$("formato").addEventListener("change", configurarFormato);
+    const faixasVideo =
+      streamCanvas.getVideoTracks();
 
-// Personalização.
+    const streamFinal = new MediaStream([
+      ...faixasVideo,
+      ...faixasAudio
+    ]);
 
-$("tamanhoTexto").addEventListener("input", () => {
-    $("valorTamanho").textContent = $("tamanhoTexto").value;
-});
+    chunks = [];
 
-// Exportação.
+    recorder = new MediaRecorder(streamFinal, {
+      mimeType: tipo
+    });
+
+    recorder.ondataavailable = evento => {
+      if (evento.data && evento.data.size > 0) {
+        chunks.push(evento.data);
+      }
+    };
+
+    recorder.onerror = evento => {
+      console.error("Erro de gravação:", evento.error);
+      mensagem("Ocorreu um erro durante a exportação.");
+    };
+
+    recorder.onstop = () => {
+      exportando = false;
+
+      $("exportar").disabled = false;
+      $("pararExportacao").disabled = true;
+
+      streamFinal.getTracks().forEach(faixa => faixa.stop());
+
+      if (!chunks.length) {
+        mensagem("Nenhum dado de vídeo foi gerado.");
+        return;
+      }
+
+      const blob = new Blob(chunks, { type: tipo });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      const extensao = tipo.includes("mp4") ? "mp4" : "webm";
+
+      link.href = url;
+      link.download = `lyric-studio-${Date.now()}.${extensao}`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+      mensagem(
+        `Exportação concluída. Arquivo gerado em ${extensao.toUpperCase()}.`
+      );
+
+      audio.removeEventListener("ended", pararAoTerminar);
+    };
+
+    function pararAoTerminar() {
+      if (
+        recorder &&
+        recorder.state !== "inactive"
+      ) {
+        recorder.stop();
+      }
+    }
+
+    audio.addEventListener("ended", pararAoTerminar);
+
+    audioAnterior = audio.currentTime;
+    audio.currentTime = 0;
+
+    exportando = true;
+    $("exportar").disabled = true;
+    $("pararExportacao").disabled = false;
+
+    /*
+     * A seleção visual é removida durante a exportação.
+     * A imagem continua desenhada no canvas.
+     */
+    recorder.start(1000);
+
+    await audio.play();
+
+    mensagem("Exportando vídeo. Aguarde a música terminar.");
+  } catch (erro) {
+    console.error("Erro ao iniciar a exportação:", erro);
+
+    exportando = false;
+    $("exportar").disabled = false;
+    $("pararExportacao").disabled = true;
+
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch (_) {}
+    }
+
+    if (streamCanvas) {
+      streamCanvas.getTracks().forEach(faixa => faixa.stop());
+    }
+
+    mensagem(
+      "Não foi possível iniciar a exportação. Verifique o áudio e tente novamente."
+    );
+  }
+}
 
 $("exportar").addEventListener("click", exportarVideo);
 
 $("pararExportacao").addEventListener("click", () => {
-    if (recorder && recorder.state !== "inactive") {
-        audio.pause();
-        audio.onended = null;
-        recorder.stop();
-    }
+  if (recorder && recorder.state !== "inactive") {
+    recorder.stop();
+    audio.pause();
+  }
 });
 
-// Limpeza ao sair.
+/* =========================================================
+   LIMPEZA
+========================================================= */
 
 window.addEventListener("beforeunload", () => {
-    if (arquivoURL) {
-        URL.revokeObjectURL(arquivoURL);
-    }
+  if (arquivoURL) {
+    URL.revokeObjectURL(arquivoURL);
+  }
 
-    if (animacao) {
-        cancelAnimationFrame(animacao);
-    }
+  elementosVisuais.forEach(elemento => {
+    URL.revokeObjectURL(elemento.url);
+  });
+
+  if (animacao) {
+    cancelAnimationFrame(animacao);
+  }
+
+  if (recorder && recorder.state !== "inactive") {
+    try {
+      recorder.stop();
+    } catch (_) {}
+  }
+
+  if (audioContext && audioContext.state !== "closed") {
+    audioContext.close();
+  }
 });
 
-// Inicialização.
+/* =========================================================
+   INICIALIZAÇÃO
+========================================================= */
 
 configurarFormato();
+atualizarControlesImagem();
 renderizar();
