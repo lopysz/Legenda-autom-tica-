@@ -437,7 +437,6 @@ function selecionarLegenda(indice) {
 
 /* ======= Ajustes em cascata (ripple) e auto-sincronização aproximada ======= */
 
-/* Ajusta (desloca) todas as legendas após 'startIndex' pelo delta (em segundos) */
 function rippleAdjust(startIndex, delta) {
   if (!delta || !legendas.length) return;
   for (let i = startIndex + 1; i < legendas.length; i++) {
@@ -445,8 +444,6 @@ function rippleAdjust(startIndex, delta) {
     legendas[i].fim = Math.max(legendas[i].inicio + 0.01, (Number(legendas[i].fim) || 0) + delta);
   }
 }
-
-/* ================= Auto-sincronização aproximada (RMS / detecção de picos) ======== */
 
 let _audioBufferCache = null;
 
@@ -466,7 +463,6 @@ async function carregarAudioBuffer() {
   }
 }
 
-/* Calcula envelope RMS com hop em ms, retorna {times:[], rms:[]} */
 function envelopeFromBuffer(buffer, hopMs = 10) {
   const sampleRate = buffer.sampleRate;
   const hop = Math.max(1, Math.floor(sampleRate * hopMs / 1000));
@@ -501,7 +497,6 @@ function envelopeFromBuffer(buffer, hopMs = 10) {
   return { times, rms };
 }
 
-/* Estatísticas simples para threshold adaptativo */
 function stats(values) {
   const arr = values.slice().sort((a,b)=>a-b);
   const mid = Math.floor(arr.length / 2);
@@ -511,7 +506,6 @@ function stats(values) {
   return { median, mean, std: Math.sqrt(variance) };
 }
 
-/* Detecta picos usando threshold dinâmico */
 function detectPeaksAdaptive(rms, times, options = {}) {
   const { minDistance = 0.06, thresholdMultiplier = 1.0, absoluteMin = 0.008 } = options;
   if (!rms || !rms.length) return [];
@@ -540,7 +534,6 @@ function detectPeaksAdaptive(rms, times, options = {}) {
   return filtered;
 }
 
-/* Auto-align melhorado: procura picos próximos ao tempo esperado sem drift grande */
 async function autoAlignAllImproved({
   windowSec = 0.8,
   preOffset = 0.05,
@@ -564,7 +557,6 @@ async function autoAlignAllImproved({
 
     const totalDuration = buffer.duration || obterDuracao() || (legendas.length * 2);
 
-    // Alinhamento por legenda, com limite de deslocamento e busca em janela
     for (let i = 0; i < legendas.length; i++) {
       const L = legendas[i];
       const dur = Math.max(0.1, (L.fim - L.inicio) || (totalDuration / Math.max(1, legendas.length)));
@@ -605,7 +597,6 @@ async function autoAlignAllImproved({
       }
     }
 
-    // Corrigir monotonia e sobreposição com pequeno empurrão
     for (let i = 1; i < legendas.length; i++) {
       const prev = legendas[i - 1];
       const cur = legendas[i];
@@ -627,7 +618,6 @@ async function autoAlignAllImproved({
   }
 }
 
-/* Botão na toolbar para auto-sync */
 (function criarBotaoAutoSync() {
   const toolbar = document.querySelector(".sync-toolbar");
   if (!toolbar) return;
@@ -721,7 +711,6 @@ function desenharLista() {
       if (indiceSelecionado !== indice) selecionarLegenda(indice);
     });
 
-    /* listeners com ripple */
     campoInicio.addEventListener("change", () => {
       const oldInicio = legenda.inicio;
       const novo = campoParaTempo(campoInicio.value);
@@ -1728,6 +1717,162 @@ $("tamanhoTexto").addEventListener("input", () => {
 });
 
 /* =========================================================
+   TIMELINE / TRIM
+========================================================= */
+
+(function timelineTrimInit() {
+  const bar = document.getElementById("timelineBar");
+  const range = document.getElementById("timelineRange");
+  const handleStart = document.getElementById("handleStart");
+  const handleEnd = document.getElementById("handleEnd");
+  const labelStart = document.getElementById("trimStartLabel");
+  const labelEnd = document.getElementById("trimEndLabel");
+  const btnReset = document.getElementById("trimReset");
+  const btnApply = document.getElementById("trimApply");
+
+  if (!bar || !handleStart || !handleEnd) return;
+
+  let duration = obterDuracao() || 0;
+  let trimStart = 0;
+  let trimEnd = null;
+  const minGap = 0.05;
+
+  function formatTimeShort(s) {
+    if (!Number.isFinite(s)) s = 0;
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
+  }
+
+  function timeToPct(t) {
+    if (!duration || duration <= 0) return 0;
+    return Math.max(0, Math.min(1, t / duration));
+  }
+
+  function pctToTime(p) {
+    return Math.max(0, Math.min(duration, p * duration));
+  }
+
+  function atualizarLabels() {
+    labelStart.textContent = formatTimeShort(trimStart || 0);
+    labelEnd.textContent = formatTimeShort(trimEnd == null ? duration : trimEnd);
+  }
+
+  function renderHandles() {
+    const rect = bar.getBoundingClientRect();
+    const leftPct = timeToPct(trimStart || 0);
+    const rightPct = timeToPct(trimEnd == null ? duration : trimEnd);
+
+    handleStart.style.left = `${leftPct * 100}%`;
+    handleEnd.style.left = `${rightPct * 100}%`;
+
+    range.style.left = `${leftPct * 100}%`;
+    range.style.width = `${Math.max(0, (rightPct - leftPct) * 100)}%`;
+  }
+
+  function atualizarDuracao() {
+    duration = obterDuracao() || 0;
+    if (!trimEnd) trimEnd = duration;
+    if (trimEnd > duration) trimEnd = duration;
+    renderHandles();
+    atualizarLabels();
+  }
+
+  audio.addEventListener("loadedmetadata", atualizarDuracao);
+  audio.addEventListener("durationchange", atualizarDuracao);
+
+  let active = null;
+
+  function onPointerDown(e, which) {
+    e.preventDefault();
+    active = which;
+    e.target?.setPointerCapture?.(e.pointerId);
+  }
+
+  function onPointerMove(e) {
+    if (!active) return;
+    const rect = bar.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, x / rect.width));
+    const time = pctToTime(pct);
+
+    if (active === "start") {
+      const newStart = Math.min(time, (trimEnd == null ? duration : trimEnd) - minGap);
+      trimStart = Math.max(0, newStart);
+    } else if (active === "end") {
+      const newEnd = Math.max(time, (trimStart || 0) + minGap);
+      trimEnd = Math.min(duration, newEnd);
+    }
+
+    renderHandles();
+    atualizarLabels();
+  }
+
+  function onPointerUp() {
+    active = null;
+  }
+
+  handleStart.addEventListener("pointerdown", e => onPointerDown(e, "start"));
+  handleEnd.addEventListener("pointerdown", e => onPointerDown(e, "end"));
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp);
+  window.addEventListener("pointercancel", onPointerUp);
+
+  function handleKey(e, which) {
+    const step = e.shiftKey ? 0.5 : 0.1;
+    if (which === "start") {
+      if (e.key === "ArrowLeft") trimStart = Math.max(0, (trimStart || 0) - step);
+      if (e.key === "ArrowRight") trimStart = Math.min((trimEnd == null ? duration : trimEnd) - minGap, (trimStart || 0) + step);
+    } else {
+      if (e.key === "ArrowLeft") trimEnd = Math.max((trimStart || 0) + minGap, (trimEnd == null ? duration : trimEnd) - step);
+      if (e.key === "ArrowRight") trimEnd = Math.min(duration, (trimEnd == null ? duration : trimEnd) + step);
+    }
+    renderHandles();
+    atualizarLabels();
+  }
+
+  handleStart.addEventListener("keydown", e => handleKey(e, "start"));
+  handleEnd.addEventListener("keydown", e => handleKey(e, "end"));
+
+  btnReset.addEventListener("click", () => {
+    trimStart = 0;
+    trimEnd = duration || null;
+    renderHandles();
+    atualizarLabels();
+    mensagem("Trim resetado.");
+  });
+
+  btnApply.addEventListener("click", () => {
+    if (!duration) {
+      mensagem("Carregue o áudio antes de aplicar o trim.");
+      return;
+    }
+
+    if (trimEnd == null) trimEnd = duration;
+
+    if (audio.src) {
+      audio.currentTime = trimStart || 0;
+      mensagem(`Trim aplicado: ${formatTimeShort(trimStart || 0)} → ${formatTimeShort(trimEnd)}`);
+    }
+  });
+
+  window._editorTrim = {
+    getStart: () => trimStart || 0,
+    getEnd: () => (trimEnd == null ? duration : trimEnd),
+    setStartEnd: (s, e) => {
+      trimStart = Math.max(0, Math.min(s, duration));
+      trimEnd = Math.max(trimStart + minGap, Math.min(e, duration));
+      renderHandles();
+      atualizarLabels();
+    }
+  };
+
+  window.addEventListener("resize", renderHandles);
+
+  atualizarDuracao();
+})();
+
+/* =========================================================
    EXPORTAÇÃO DE VÍDEO
 ========================================================= */
 
@@ -1777,6 +1922,9 @@ $("exportar").addEventListener("click", async () => {
     mensagem("Aguarde o carregamento da duração do áudio.");
     return;
   }
+
+  const trimStart = window._editorTrim?.getStart?.() ?? 0;
+  const trimEnd = window._editorTrim?.getEnd?.() ?? obterDuracao();
 
   const tipo = obterTipoGravacao();
 
@@ -1853,11 +2001,12 @@ $("exportar").addEventListener("click", async () => {
   exportando = true;
   $("exportar").disabled = true;
   $("pararExportacao").disabled = false;
-  audio.currentTime = 0;
+
+  audio.currentTime = trimStart;
 
   if (videoFundo.src) {
     try {
-      videoFundo.currentTime = 0;
+      videoFundo.currentTime = trimStart;
       await videoFundo.play();
     } catch (erro) {
       console.warn("O vídeo de fundo não iniciou automaticamente.", erro);
@@ -1869,7 +2018,7 @@ $("exportar").addEventListener("click", async () => {
 
   try {
     await audio.play();
-    mensagem(`Exportando vídeo em ${canvas.width} × ${canvas.height}. Não feche a página.`);
+    mensagem(`Exportando trecho: ${formatarTempo(trimStart)} → ${formatarTempo(trimEnd)}. Não feche a página.`);
   } catch (erro) {
     if (mediaRecorder.state === "recording") mediaRecorder.stop();
     mensagem("Não foi possível iniciar a reprodução do áudio para exportar.");
@@ -1881,7 +2030,7 @@ $("exportar").addEventListener("click", async () => {
 
     renderizar();
 
-    if (audio.ended || audio.currentTime >= obterDuracao()) {
+    if (audio.currentTime >= trimEnd) {
       if (mediaRecorder?.state === "recording") mediaRecorder.stop();
       return;
     }
@@ -1928,10 +2077,9 @@ window.addEventListener("beforeunload", () => {
   });
 });
 
-
-/* ==========================================
-   LYRIC STUDIO — GAVETAS E PRÉVIA EM POP-UP
-========================================== */
+/* =========================================================
+   POP-UP DA PRÉVIA
+========================================================= */
 
 (() => {
   "use strict";
@@ -1939,10 +2087,9 @@ window.addEventListener("beforeunload", () => {
   function iniciarNovaInterface() {
     const $ = id => document.getElementById(id);
 
-    const topbar = document.querySelector(".topbar");
     const preview = document.querySelector(".preview-panel");
     const canvas = $("canvas");
-    const audio = $("audio");
+    const audioEl = $("audio");
 
     if (!preview || !canvas) {
       console.warn("Lyric Studio: elementos da interface não encontrados.");
@@ -1960,7 +2107,6 @@ window.addEventListener("beforeunload", () => {
 
     gavetas.forEach(config => {
       const secao = $(config.id);
-
       if (!secao) return;
 
       secao.classList.add("drawer-section");
@@ -1976,7 +2122,6 @@ window.addEventListener("beforeunload", () => {
 
         cabecalho.type = "button";
         cabecalho.className = "drawer-toggle";
-
         cabecalho.innerHTML = `
           <span class="drawer-toggle-label">
             <span class="drawer-icon" aria-hidden="true">${config.icone}</span>
@@ -2057,9 +2202,7 @@ window.addEventListener("beforeunload", () => {
             <h2 id="previewModalTitulo">Prévia do vídeo</h2>
             <button id="fecharPreviewModal" type="button" aria-label="Fechar prévia">×</button>
           </div>
-
           <div id="previewModalContent"></div>
-
           <div class="preview-modal-controls">
             <button id="previewModalPlay" type="button">▶ Reproduzir áudio</button>
             <span id="previewModalTempo">00:00 / 00:00</span>
@@ -2105,14 +2248,14 @@ window.addEventListener("beforeunload", () => {
     }
 
     function atualizarTempoModal() {
-      if (!audio) return;
+      if (!audioEl) return;
       tempoModal.textContent =
-        formatarTempoModal(audio.currentTime || 0) + " / " + formatarTempoModal(audio.duration);
+        formatarTempoModal(audioEl.currentTime || 0) + " / " + formatarTempoModal(audioEl.duration);
     }
 
     function atualizarBotaoAudio() {
-      if (!audio) return;
-      tocarModalButton.textContent = audio.paused ? "▶ Reproduzir áudio" : "Ⅱ Pausar áudio";
+      if (!audioEl) return;
+      tocarModalButton.textContent = audioEl.paused ? "▶ Reproduzir áudio" : "Ⅱ Pausar áudio";
     }
 
     function abrirModal() {
@@ -2163,19 +2306,19 @@ window.addEventListener("beforeunload", () => {
       }
     });
 
-    if (audio) {
+    if (audioEl) {
       tocarModalButton.addEventListener("click", async () => {
         try {
-          if (audio.paused) {
+          if (audioEl.paused) {
             if (typeof prepararAudioContext === "function") prepararAudioContext();
 
             if (typeof audioContext !== "undefined" && audioContext && audioContext.state === "suspended") {
               await audioContext.resume();
             }
 
-            await audio.play();
+            await audioEl.play();
           } else {
-            audio.pause();
+            audioEl.pause();
           }
         } catch (erro) {
           console.error("Não foi possível reproduzir o áudio:", erro);
@@ -2185,11 +2328,11 @@ window.addEventListener("beforeunload", () => {
       });
 
       ["timeupdate", "durationchange", "loadedmetadata", "seeked"].forEach(evento => {
-        audio.addEventListener(evento, atualizarTempoModal);
+        audioEl.addEventListener(evento, atualizarTempoModal);
       });
 
       ["play", "pause", "ended"].forEach(evento => {
-        audio.addEventListener(evento, atualizarBotaoAudio);
+        audioEl.addEventListener(evento, atualizarBotaoAudio);
       });
     }
 
@@ -2203,9 +2346,9 @@ window.addEventListener("beforeunload", () => {
   }
 })();
 
-/* ==========================================
-   LYRIC STUDIO — ANIMAÇÕES DE ADESIVOS
-========================================== */
+/* =========================================================
+   ANIMAÇÕES DE ADESIVOS
+========================================================= */
 
 (() => {
   "use strict";
@@ -2458,55 +2601,4 @@ window.addEventListener("beforeunload", () => {
   } else {
     configurarControlesAnimacao();
   }
-})();
-/* Move o bloco .player para dentro da .preview-panel no desktop e reverte no mobile */
-(function movePlayerToPreview() {
-  const player = document.querySelector(".player");
-  const preview = document.querySelector(".preview-panel");
-  if (!player || !preview) return;
-
-  const originalParent = player.parentNode;
-  // placeholder para reconstituir posição original
-  const placeholder = document.createElement("div");
-  placeholder.className = "player-placeholder";
-  originalParent.insertBefore(placeholder, player);
-
-  const mql = window.matchMedia("(min-width: 900px)");
-  let moved = false;
-
-  function update() {
-    if (mql.matches) {
-      if (!moved) {
-        preview.appendChild(player);
-        player.classList.add("preview-player");
-        moved = true;
-      }
-    } else {
-      if (moved) {
-        // repor no local original (após o placeholder)
-        if (placeholder.parentNode) {
-          placeholder.parentNode.insertBefore(player, placeholder.nextSibling);
-        } else {
-          originalParent.appendChild(player);
-        }
-        player.classList.remove("preview-player");
-        moved = false;
-      }
-    }
-  }
-
-  // Listen changes (compatível com navegadores mais antigos)
-  if (typeof mql.addEventListener === "function") {
-    mql.addEventListener("change", update);
-  } else if (typeof mql.addListener === "function") {
-    mql.addListener(update);
-  }
-
-  // Executa uma vez na carga
-  update();
-
-  // remover placeholder no unload (limpeza)
-  window.addEventListener("beforeunload", () => {
-    try { placeholder.remove(); } catch (_) {}
-  });
 })();
