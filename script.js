@@ -1920,86 +1920,162 @@ window.addEventListener("beforeunload", () => {
       }
     });
 
-    /* ==========================================
-       SUBGAVETAS
-       Todas começam fechadas.
-       Abrir uma não fecha as demais.
-    ========================================== */
+   
+/* =========================================================
+   SUBGAVETAS — ABERTURA E FECHAMENTO CORRIGIDOS
+========================================================= */
 
-    function prepararSubgavetas() {
-      document.querySelectorAll(".subdrawer-toggle").forEach(botao => {
-        /*
-          Localiza o corpo da subgaveta.
-          Aceita aria-controls, data-target ou o próximo elemento.
-        */
-        const controleId =
-          botao.getAttribute("aria-controls") ||
-          botao.dataset.target ||
-          botao.dataset.subdrawerTarget;
+function encontrarConteudoSubgaveta(botao) {
+  // 1. Tenta localizar o conteúdo pelo ID informado no botão.
+  const referencias = [
+    botao.getAttribute("aria-controls"),
+    botao.getAttribute("data-target"),
+    botao.getAttribute("data-subdrawer-target"),
+    botao.getAttribute("data-subdrawerTarget")
+  ].filter(Boolean);
 
-        let corpo = controleId
-          ? $(controleId.replace(/^#/, ""))
-          : null;
+  for (const referencia of referencias) {
+    const id = referencia.replace(/^#/, "");
+    const elemento = document.getElementById(id);
 
-        if (!corpo) {
-          const proximo = botao.nextElementSibling;
+    if (elemento) return elemento;
 
-          if (
-            proximo &&
-            (
-              proximo.classList.contains("subdrawer-body") ||
-              proximo.classList.contains("subdrawer-content")
-            )
-          ) {
-            corpo = proximo;
-          }
-        }
+    try {
+      const elementoPorSeletor = document.querySelector(referencia);
+      if (elementoPorSeletor) return elementoPorSeletor;
+    } catch (erro) {
+      // Ignora referências que não sejam seletores válidos.
+    }
+  }
 
-        if (!corpo) {
-          const pai = botao.parentElement;
+  // 2. Procura o conteúdo logo depois do botão.
+  let proximo = botao.nextElementSibling;
 
-          if (pai) {
-            corpo = pai.querySelector(
-              ":scope > .subdrawer-body, :scope > .subdrawer-content"
-            );
-          }
-        }
-
-        if (!corpo) {
-          console.warn(
-            "Lyric Studio: corpo da subgaveta não encontrado.",
-            botao
-          );
-          return;
-        }
-
-        botao.setAttribute("aria-expanded", "false");
-        corpo.hidden = true;
-
-        if (botao.dataset.subdrawerClickReady === "true") return;
-
-        botao.dataset.subdrawerClickReady = "true";
-
-        botao.addEventListener("click", () => {
-          const abrir = corpo.hidden;
-
-          corpo.hidden = !abrir;
-          botao.setAttribute("aria-expanded", String(abrir));
-        });
-      });
+  while (proximo) {
+    if (
+      proximo.matches(
+        ".subdrawer-body, .subdrawer-content, " +
+        ".subgaveta-body, .subgaveta-content, " +
+        "[data-subdrawer-content]"
+      )
+    ) {
+      return proximo;
     }
 
-    prepararSubgavetas();
+    // Não atravessa outro botão de subgaveta.
+    if (
+      proximo.matches(
+        ".subdrawer-toggle, .subgaveta-toggle, " +
+        "[data-subdrawer-toggle]"
+      )
+    ) {
+      break;
+    }
 
-    /*
-      Garante que subgavetas existentes continuem fechadas
-      caso o HTML tenha conteúdo dentro de outra estrutura.
-    */
-    document.querySelectorAll(
-      ".subdrawer-body, .subdrawer-content"
-    ).forEach(corpo => {
-      corpo.hidden = true;
+    proximo = proximo.nextElementSibling;
+  }
+
+  // 3. Procura dentro do contêiner mais próximo.
+  const contenedor = botao.closest(
+    ".subdrawer, .subgaveta, .subdrawer-item, " +
+    ".subgaveta-item, .subdrawer-wrapper, " +
+    ".subgaveta-wrapper, [data-subdrawer]"
+  );
+
+  if (contenedor) {
+    const conteudo = contenedor.querySelector(
+      ".subdrawer-body, .subdrawer-content, " +
+      ".subgaveta-body, .subgaveta-content, " +
+      "[data-subdrawer-content]"
+    );
+
+    if (conteudo && conteudo !== botao) return conteudo;
+  }
+
+  // 4. Última tentativa: conteúdo dentro do elemento pai.
+  if (botao.parentElement) {
+    const conteudo = botao.parentElement.querySelector(
+      ".subdrawer-body, .subdrawer-content, " +
+      ".subgaveta-body, .subgaveta-content, " +
+      "[data-subdrawer-content]"
+    );
+
+    if (conteudo && conteudo !== botao) return conteudo;
+  }
+
+  return null;
+}
+
+function alternarSubgaveta(botao) {
+  const conteudo = encontrarConteudoSubgaveta(botao);
+
+  if (!conteudo) {
+    console.warn(
+      "Lyric Studio: conteúdo da subgaveta não encontrado.",
+      botao
+    );
+    return;
+  }
+
+  const estaAberta =
+    !conteudo.hidden &&
+    getComputedStyle(conteudo).display !== "none";
+
+  // Abre ou fecha somente esta subgaveta.
+  conteudo.hidden = estaAberta;
+  conteudo.style.display = estaAberta ? "none" : "";
+
+  // Garante que o CSS não impeça a abertura.
+  if (!estaAberta && getComputedStyle(conteudo).display === "none") {
+    conteudo.style.display = "block";
+  }
+
+  botao.setAttribute("aria-expanded", String(!estaAberta));
+  botao.classList.toggle("is-open", !estaAberta);
+  botao.classList.toggle("active", !estaAberta);
+}
+
+// Inicializa as subgavetas fechadas.
+function inicializarSubgavetas() {
+  const seletores = [
+    ".subdrawer-toggle",
+    ".subgaveta-toggle",
+    "[data-subdrawer-toggle]"
+  ].join(",");
+
+  document.querySelectorAll(seletores).forEach(botao => {
+    const conteudo = encontrarConteudoSubgaveta(botao);
+
+    if (conteudo) {
+      conteudo.hidden = true;
+      conteudo.style.display = "none";
+      botao.setAttribute("aria-expanded", "false");
+      botao.classList.remove("is-open", "active");
+    }
+
+    // Evita cadastrar o mesmo evento mais de uma vez.
+    if (botao.dataset.subdrawerReady === "true") return;
+
+    botao.dataset.subdrawerReady = "true";
+
+    botao.addEventListener("click", evento => {
+      evento.preventDefault();
+      evento.stopPropagation();
+      alternarSubgaveta(botao);
     });
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener(
+    "DOMContentLoaded",
+    inicializarSubgavetas,
+    { once: true }
+  );
+} else {
+  inicializarSubgavetas();
+}
+
 
     /* ==========================================
        PRÉVIA EM POP-UP
