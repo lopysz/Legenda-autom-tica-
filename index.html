@@ -667,6 +667,26 @@
         <canvas id="canvas" width="720" height="1280"></canvas>
       </div>
 
+      <!-- TIMELINE / TRACK VIEW -->
+      <div class="timeline-container" id="timelineContainer">
+        <div class="timeline" id="timeline">
+          <div class="timeline-bar" id="timelineBar">
+            <div class="timeline-range" id="timelineRange"></div>
+            <div class="timeline-handle start" id="handleStart" role="slider" aria-label="Início do trecho" tabindex="0"></div>
+            <div class="timeline-handle end" id="handleEnd" role="slider" aria-label="Fim do trecho" tabindex="0"></div>
+          </div>
+
+          <div class="timeline-controls">
+            <span class="time-label" id="trimStartLabel">00:00</span>
+            <div class="timeline-buttons">
+              <button type="button" id="trimReset" class="secondary-button">Reset</button>
+              <button type="button" id="trimApply" class="primary-button">Aplicar Trim</button>
+            </div>
+            <span class="time-label" id="trimEndLabel">00:00</span>
+          </div>
+        </div>
+      </div>
+
       <div class="preview-footer">
         <span id="proporcao">9:16 · Vertical</span>
         <span id="tempoPreview">00:00</span>
