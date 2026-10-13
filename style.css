@@ -1762,3 +1762,43 @@ progress {
     overflow: visible !important;
   }
 }
+/* Coloca o player dentro da prévia e fixa no desktop */
+@media (min-width: 900px) {
+  :root { --topbar-offset: 62px; } /* ajuste se seu topbar tiver outra altura */
+
+  .preview-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    max-height: calc(100vh - var(--topbar-offset) - 24px);
+    overflow: auto;
+  }
+
+  /* Faz o canvas ocupar o espaço superior e os controles ficarem embaixo */
+  .preview-panel .canvas-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* Estilo do player quando estiver dentro da prévia */
+  .preview-panel .player.preview-player {
+    flex: 0 0 auto;
+    position: sticky;
+    bottom: 0;
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(11,16,23,0.95);
+    border-top: 1px solid var(--border);
+    border-radius: 10px;
+    z-index: 20;
+    box-shadow: 0 -6px 18px rgba(3,7,12,0.5);
+  }
+}
+
+/* No mobile manter o comportamento atual */
+@media (max-width: 899px) {
+  .preview-panel .player.preview-player {
+    position: static !important;
+    box-shadow: none;
+  }
+}
