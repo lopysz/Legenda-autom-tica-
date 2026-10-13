@@ -1003,3 +1003,72 @@ max-height: none;
 overflow: visible;
 }
 }
+/* =========================================================
+PRÉVIA FIXA NO CELULAR
+========================================================= */
+
+@media (max-width: 1120px) {
+.app-shell {
+display: flex;
+flex-direction: column;
+align-items: stretch;
+}
+
+/* Mantém o menu antes das outras áreas */
+.sidebar {
+order: 0;
+}
+
+/* Coloca a prévia antes do editor */
+.preview-panel {
+order: 1;
+position: sticky;
+top: 70px;
+align-self: stretch;
+z-index: 50;
+
+max-height: 34vh;
+overflow-y: auto;
+
+margin: 0 0 12px;
+padding: 10px;
+
+background: #0b1017;
+border-radius: 12px;
+border: 1px solid #263445;
+
+}
+
+/* Mantém o vídeo compacto */
+.canvas-wrap {
+max-height: 25vh;
+overflow: hidden;
+}
+
+#canvas {
+display: block;
+width: 100%;
+height: auto;
+max-height: 25vh;
+object-fit: contain;
+}
+
+/* Deixa o editor abaixo da prévia */
+.editor-panel {
+order: 2;
+min-width: 0;
+}
+}
+
+@media (max-width: 700px) {
+.preview-panel {
+top: 60px;
+max-height: 32vh;
+padding: 8px;
+}
+
+.canvas-wrap,
+#canvas {
+max-height: 22vh;
+}
+}
