@@ -1,4 +1,3 @@
-
 "use strict";
 
 /* =========================================================
@@ -37,6 +36,9 @@ let partesVideo = [];
 let rafId = null;
 let arrastando = false;
 let ultimaPosicao = null;
+
+/* Identifica o ponteiro usado no arraste. */
+let ponteiroArrasteId = null;
 
 const fundoLUT = document.createElement("canvas");
 const fundoLUTctx = fundoLUT.getContext("2d", {
@@ -1051,31 +1053,30 @@ function encontrarImagem(x, y) {
   return null;
 }
 
-canvas.addEventListener("pointerdown", evento => {
+/* =========================================================
+   ARRASTE CONTÍNUO DE ADESIVOS — CELULAR E COMPUTADOR
+========================================================= */
+
+/*
+  Impede que o navegador interprete o movimento do dedo
+  sobre o canvas como gesto de rolagem ou zoom.
+*/
+canvas.style.touchAction = "none";
+canvas.style.userSelect = "none";
+canvas.style.webkitUserSelect = "none";
+canvas.style.webkitTouchCallout = "none";
+
+function iniciarArrasto(evento) {
+  if (!evento.isPrimary) return;
+
+  if (evento.pointerType === "mouse" && evento.button !== 0) {
+    return;
+  }
+
   const posicao = obterCoordenadas(evento);
   const item = encontrarImagem(posicao.x, posicao.y);
 
-  if (item) {
-    imagemSelecionada = item.id;
-    arrastando = true;
-    ultimaPosicao = posicao;
-
-    canvas.setPointerCapture(evento.pointerId);
-
-    $("nomeImagem").textContent = item.nome;
-    $("tamanhoImagem").value = item.escala;
-    $("rotacaoImagem").value = item.rotacao;
-
-    definirTamanhoImagem();
-    definirRotacaoImagem();
-
-    if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
-      window.carregarControlesAnimacaoAdesivo(item);
-    }
-
-    $("estadoImagem").textContent = "Arrastando imagem selecionada.";
-    renderizar();
-  } else {
+  if (!item) {
     imagemSelecionada = null;
 
     if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
@@ -1083,31 +1084,101 @@ canvas.addEventListener("pointerdown", evento => {
     }
 
     renderizar();
+    return;
   }
-});
 
-canvas.addEventListener("pointermove", evento => {
+  evento.preventDefault();
+
+  imagemSelecionada = item.id;
+  arrastando = true;
+  ultimaPosicao = posicao;
+  ponteiroArrasteId = evento.pointerId;
+
+  try {
+    canvas.setPointerCapture(evento.pointerId);
+  } catch (erro) {
+    console.warn("Não foi possível capturar o ponteiro:", erro);
+  }
+
+  $("nomeImagem").textContent = item.nome;
+  $("tamanhoImagem").value = item.escala;
+  $("rotacaoImagem").value = item.rotacao;
+
+  definirTamanhoImagem();
+  definirRotacaoImagem();
+
+  if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
+    window.carregarControlesAnimacaoAdesivo(item);
+  }
+
+  $("estadoImagem").textContent =
+    "Mantenha o dedo pressionado e deslize para mover o adesivo.";
+
+  renderizar();
+}
+
+function moverArrasto(evento) {
   if (!arrastando || !ultimaPosicao) return;
+  if (evento.pointerId !== ponteiroArrasteId) return;
+
+  evento.preventDefault();
+
+  const item = itemImagemSelecionada();
+
+  if (!item) {
+    encerrarArrasto(evento);
+    return;
+  }
 
   const posicao = obterCoordenadas(evento);
-  const item = itemImagemSelecionada();
-  if (!item) return;
 
   item.x += posicao.x - ultimaPosicao.x;
   item.y += posicao.y - ultimaPosicao.y;
+
   ultimaPosicao = posicao;
 
   renderizar();
-});
+}
 
-function encerrarArrasto() {
+function encerrarArrasto(evento) {
+  if (
+    evento &&
+    ponteiroArrasteId !== null &&
+    evento.pointerId !== ponteiroArrasteId
+  ) {
+    return;
+  }
+
+  const ponteiroAnterior = ponteiroArrasteId;
+
   arrastando = false;
   ultimaPosicao = null;
+  ponteiroArrasteId = null;
+
+  if (
+    ponteiroAnterior !== null &&
+    canvas.hasPointerCapture &&
+    canvas.hasPointerCapture(ponteiroAnterior)
+  ) {
+    try {
+      canvas.releasePointerCapture(ponteiroAnterior);
+    } catch (erro) {
+      // O navegador pode já ter liberado a captura.
+    }
+  }
 }
+
+canvas.addEventListener("pointerdown", iniciarArrasto, {
+  passive: false
+});
+
+canvas.addEventListener("pointermove", moverArrasto, {
+  passive: false
+});
 
 canvas.addEventListener("pointerup", encerrarArrasto);
 canvas.addEventListener("pointercancel", encerrarArrasto);
-
+canvas.addEventListener("lostpointercapture", encerrarArrasto);
 /* =========================================================
    DESENHO DO TEXTO E EFEITOS
 ========================================================= */
@@ -1338,11 +1409,6 @@ function desenharFundo() {
   ctx.drawImage(videoFundo, (largura - w) / 2, (altura - h) / 2, w, h);
 }
 
-/*
- * CORREÇÃO PRINCIPAL:
- * Agora cada adesivo passa pela função que calcula e desenha
- * sua animação de acordo com o tempo do áudio.
- */
 function desenharAdesivos() {
   const tempo = audio.currentTime || 0;
 
@@ -1984,7 +2050,6 @@ window.addEventListener("beforeunload", () => {
     );
   }
 
-  // Permite que os outros trechos do script atualizem os controles.
   window.carregarControlesAnimacaoAdesivo = carregarControlesAnimacao;
 
   function aplicarAnimacao() {
