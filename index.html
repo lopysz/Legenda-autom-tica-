@@ -5,50 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b1017">
   <title>Lyric Studio</title>
-  <link rel="stylesheet" href="./style.css?v=4">
+  <link rel="stylesheet" href="./style.css?v=5">
 </head>
 <body>
 
   <header class="topbar">
-    <a class="brand" href="#inicio" aria-label="Lyric Studio - início">
+    <a class="brand" href="#inicio">
       <span class="brand-icon">♫</span>
       <span>
         <strong>Lyric Studio</strong>
         <small>Editor de vídeos musicais</small>
       </span>
     </a>
-    <span class="status"><span class="status-dot"></span> EDITOR LOCAL</span>
+    <div class="status">
+      <span class="status-dot"></span>
+      EDITOR
+    </div>
   </header>
 
   <main class="app-shell" id="inicio">
 
-    <!-- NAVEGAÇÃO LATERAL -->
     <aside class="sidebar">
-      <div class="sidebar-label">ESPAÇO DE TRABALHO</div>
+      <div class="sidebar-label">SEU PROJETO</div>
 
-      <nav class="side-nav" aria-label="Navegação do editor">
+      <nav class="side-nav">
         <a class="nav-item selected" href="#sec-musica">
           <span class="nav-icon">♫</span>
           <span>Música</span>
           <span class="nav-number">01</span>
         </a>
+
         <a class="nav-item" href="#sec-letra">
           <span class="nav-icon">≡</span>
           <span>Letra</span>
           <span class="nav-number">02</span>
         </a>
+
         <a class="nav-item" href="#sec-legendas">
-          <span class="nav-icon">▤</span>
-          <span>Legendas</span>
+          <span class="nav-icon">◷</span>
+          <span>Sincronização</span>
           <span class="nav-number">03</span>
         </a>
+
         <a class="nav-item" href="#sec-aparencia">
-          <span class="nav-icon">◐</span>
+          <span class="nav-icon">◈</span>
           <span>Aparência</span>
           <span class="nav-number">04</span>
         </a>
+
         <a class="nav-item" href="#sec-exportar">
-          <span class="nav-icon">⇩</span>
+          <span class="nav-icon">↗</span>
           <span>Exportar</span>
           <span class="nav-number">05</span>
         </a>
@@ -56,42 +62,48 @@
 
       <div class="sidebar-bottom">
         <div class="sidebar-tip-icon">✦</div>
-        <strong>Seu projeto</strong>
-        <p>Prepare a letra, ajuste a sincronização e confira a prévia antes de exportar.</p>
-        <a href="#sec-exportar" class="sidebar-link">Ir para exportação →</a>
+        <strong>Personalize seu vídeo</strong>
+        <p>Edite as legendas e adicione imagens diretamente à prévia.</p>
+      </div>
+
+      <div class="sidebar-footer">
+        Lyric Studio · Editor local
       </div>
     </aside>
 
-    <!-- PAINEL CENTRAL DE EDIÇÃO -->
     <section class="editor-panel">
 
       <div class="page-heading">
-        <div>
-          <p class="eyebrow">PROJETO MUSICAL</p>
-          <h1>Editor de letras</h1>
-          <p class="muted">Configure a música e sincronize cada trecho.</p>
-        </div>
+        <p class="eyebrow">ESTÚDIO DE EDIÇÃO</p>
+        <h1>Crie seu lyric video</h1>
+        <p class="muted">Sincronize a letra, personalize o visual e exporte.</p>
       </div>
 
       <section class="editor-section" id="sec-musica">
         <div class="section-heading">
           <span class="section-icon">♫</span>
           <div>
-            <h2>Música</h2>
-            <p>Importe o áudio e controle a reprodução.</p>
+            <h2>Áudio</h2>
+            <p>Escolha a música do seu vídeo.</p>
           </div>
         </div>
 
         <label class="file-label" for="arquivoAudio">
           <span class="upload-icon">↑</span>
           <strong>Importar música</strong>
-          <small>Escolha um arquivo de áudio no dispositivo</small>
-          <span class="upload-action">Selecionar arquivo</span>
+          <small>Selecione um arquivo de áudio do seu dispositivo.</small>
+          <span class="upload-action">Escolher arquivo</span>
         </label>
 
-        <input id="arquivoAudio" type="file" accept="audio/*" hidden>
+        <input
+          id="arquivoAudio"
+          type="file"
+          accept="audio/*"
+          hidden
+        >
 
-        <p id="nomeAudio" class="file-name muted">Nenhum áudio selecionado</p>
+        <p class="file-name" id="nomeAudio">Nenhum áudio selecionado.</p>
+
         <audio id="audio" preload="metadata"></audio>
 
         <div class="audio-controls">
@@ -100,12 +112,20 @@
           <button id="avancar" class="secondary" type="button">+5 s</button>
         </div>
 
+        <input
+          id="seek"
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value="0"
+          aria-label="Posição da música"
+        >
+
         <div class="time-row">
           <span id="tempoAtual">00:00</span>
           <span id="duracao">00:00</span>
         </div>
-
-        <input id="seek" type="range" min="0" max="100" value="0" step="0.1" aria-label="Posição na música">
       </section>
 
       <section class="editor-section" id="sec-letra">
@@ -113,144 +133,254 @@
           <span class="section-icon">≡</span>
           <div>
             <h2>Letra da música</h2>
-            <p>Separe cada trecho em uma linha.</p>
+            <p>Digite ou cole a letra, colocando cada trecho em uma linha.</p>
           </div>
         </div>
 
-        <label for="letra">Texto da letra</label>
-        <textarea id="letra" rows="7" placeholder="Primeira linha da música&#10;Segunda linha da música&#10;Terceira linha da música"></textarea>
+        <label for="letra">Letra</label>
+        <textarea
+          id="letra"
+          placeholder="Digite ou cole a letra aqui.&#10;&#10;Cada linha será transformada em uma legenda."
+        ></textarea>
 
         <button id="criarLinhas" class="primary full" type="button">
-          Criar linhas da legenda
+          Criar legendas
         </button>
+
+        <p class="help-text">
+          A duração inicial será distribuída automaticamente. Depois, ajuste
+          os tempos na seção de sincronização.
+        </p>
       </section>
 
       <section class="editor-section" id="sec-legendas">
         <div class="section-heading">
-          <span class="section-icon">▤</span>
+          <span class="section-icon">◷</span>
           <div>
             <h2>Sincronização</h2>
-            <p>Marque os momentos em que cada trecho começa.</p>
+            <p>Defina quando cada linha começa e termina.</p>
           </div>
         </div>
 
         <div class="sync-box">
-          <label for="linhaSelecionada">Linha para sincronizar</label>
+          <label for="linhaSelecionada">Legenda selecionada</label>
           <select id="linhaSelecionada">
-            <option value="">Crie as linhas primeiro</option>
+            <option value="">Nenhuma legenda disponível</option>
           </select>
 
           <button id="marcarTempo" class="primary full" type="button">
             Marcar início no tempo atual
           </button>
 
-          <p class="muted help-text">
-            Reproduza a música e marque cada linha quando ela começar.
+          <p class="help-text">
+            Reproduza a música e use o botão para marcar o início da legenda
+            selecionada.
           </p>
         </div>
 
         <div class="subsection-heading">
-          <h3>Legendas sincronizadas</h3>
-          <span class="subsection-tag">EDIÇÃO MANUAL</span>
+          <h3>Linhas da letra</h3>
+          <span class="subsection-tag" id="contadorLegendas">0 LINHAS</span>
         </div>
 
-        <p class="muted">Ajuste o início e o fim de cada trecho abaixo.</p>
-
         <div id="listaLegendas" class="lyrics-list">
-          <p class="muted empty-state">As linhas aparecerão aqui depois de criar as legendas.</p>
+          <p class="muted">Crie as legendas para começar.</p>
         </div>
       </section>
 
       <section class="editor-section" id="sec-aparencia">
         <div class="section-heading">
-          <span class="section-icon">◐</span>
+          <span class="section-icon">◈</span>
           <div>
-            <h2>Aparência do vídeo</h2>
-            <p>Personalize o visual das legendas.</p>
+            <h2>Aparência e elementos</h2>
+            <p>Personalize o vídeo e posicione suas imagens.</p>
           </div>
         </div>
 
-        <label for="formato">Formato do vídeo</label>
-        <select id="formato">
-          <option value="vertical">Vertical — 9:16</option>
-          <option value="horizontal">Horizontal — 16:9</option>
-        </select>
+        <div class="settings-grid">
+          <div>
+            <label for="formato">Formato do vídeo</label>
+            <select id="formato">
+              <option value="vertical">Vertical · 9:16</option>
+              <option value="horizontal">Horizontal · 16:9</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="posicaoTexto">Posição da legenda</label>
+            <select id="posicaoTexto">
+              <option value="centro">Centro</option>
+              <option value="baixo">Parte inferior</option>
+              <option value="alto">Parte superior</option>
+            </select>
+          </div>
+        </div>
 
         <div class="color-grid">
           <div>
-            <label for="corFundo">Cor do fundo</label>
+            <label for="corFundo">Fundo</label>
             <input id="corFundo" type="color" value="#101014">
           </div>
+
           <div>
-            <label for="corTexto">Cor do texto</label>
+            <label for="corTexto">Texto</label>
             <input id="corTexto" type="color" value="#ffffff">
           </div>
+
           <div>
             <label for="corDestaque">Destaque</label>
-            <input id="corDestaque" type="color" value="#7cf0b1">
+            <input id="corDestaque" type="color" value="#80f2b5">
           </div>
         </div>
 
         <div class="range-heading">
-          <label for="tamanhoTexto">Tamanho da letra</label>
-          <span class="range-value"><span id="valorTamanho">48</span> px</span>
+          <label for="tamanhoTexto">Tamanho da legenda</label>
+          <span id="valorTamanho" class="range-value">42 px</span>
         </div>
-        <input id="tamanhoTexto" type="range" min="24" max="84" value="48">
 
-        <label for="posicaoTexto">Posição da legenda</label>
-        <select id="posicaoTexto">
-          <option value="center">Centro</option>
-          <option value="bottom">Parte inferior</option>
-          <option value="top">Parte superior</option>
-        </select>
+        <input
+          id="tamanhoTexto"
+          type="range"
+          min="20"
+          max="100"
+          value="42"
+          step="1"
+        >
 
-        <label class="check-row" for="mostrarAudio">
+        <label class="check-row">
           <input id="mostrarAudio" type="checkbox" checked>
-          <span>Mostrar visualizador de áudio</span>
+          <span>Mostrar visualização do áudio</span>
         </label>
+
+        <div class="sticker-tools">
+          <div class="subsection-heading sticker-heading">
+            <h3>Imagens e figurinhas</h3>
+            <span class="subsection-tag">NOVO</span>
+          </div>
+
+          <p class="help-text">
+            Importe uma imagem e arraste-a diretamente na prévia do vídeo.
+            Você também pode ajustar o tamanho e a rotação.
+          </p>
+
+          <label for="arquivoImagem">Adicionar imagem</label>
+          <input
+            id="arquivoImagem"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+          >
+
+          <p id="nomeImagem" class="file-name">
+            Nenhuma imagem adicionada.
+          </p>
+
+          <div class="range-heading">
+            <label for="tamanhoImagem">Tamanho da imagem</label>
+            <span id="valorTamanhoImagem" class="range-value">100%</span>
+          </div>
+
+          <input
+            id="tamanhoImagem"
+            type="range"
+            min="25"
+            max="300"
+            value="100"
+            step="1"
+            disabled
+          >
+
+          <div class="range-heading">
+            <label for="rotacaoImagem">Rotação</label>
+            <span id="valorRotacaoImagem" class="range-value">0°</span>
+          </div>
+
+          <input
+            id="rotacaoImagem"
+            type="range"
+            min="-180"
+            max="180"
+            value="0"
+            step="1"
+            disabled
+          >
+
+          <div class="button-row sticker-buttons">
+            <button
+              id="centralizarImagem"
+              class="secondary"
+              type="button"
+              disabled
+            >
+              Centralizar
+            </button>
+
+            <button
+              id="excluirImagem"
+              class="danger"
+              type="button"
+              disabled
+            >
+              Excluir imagem
+            </button>
+          </div>
+
+          <p id="estadoImagem" class="help-text" aria-live="polite">
+            Selecione uma imagem para habilitar os controles.
+          </p>
+        </div>
       </section>
 
-      <section class="editor-section export-section" id="sec-exportar">
+      <section class="editor-section" id="sec-exportar">
         <div class="section-heading">
-          <span class="section-icon">⇩</span>
+          <span class="section-icon">↗</span>
           <div>
             <h2>Exportar vídeo</h2>
-            <p>Gere o vídeo com a música e as legendas.</p>
+            <p>Gere o vídeo com a música, as legendas e as imagens.</p>
           </div>
         </div>
 
         <div class="export-info">
-          <strong>Antes de exportar</strong>
-          <p>Confira a sincronização e aguarde a música terminar durante a gravação.</p>
+          <strong>Pronto para exportar?</strong>
+          <p>
+            O resultado será gravado em tempo real a partir da prévia.
+            O formato final depende dos formatos de gravação aceitos pelo
+            navegador.
+          </p>
         </div>
 
         <button id="exportar" class="export-button full" type="button">
-          ● Exportar vídeo completo
+          Exportar vídeo
         </button>
 
-        <button id="pararExportacao" class="secondary full" type="button" disabled>
+        <button
+          id="pararExportacao"
+          class="secondary full"
+          type="button"
+          disabled
+        >
           Parar exportação
         </button>
 
-        <p id="mensagem" role="status" aria-live="polite">
-          Pronto para começar.
+        <p id="mensagem" aria-live="polite">
+          Importe uma música para começar.
         </p>
       </section>
 
       <footer class="editor-footer">
-        Lyric Studio <span>•</span> Editor musical no navegador
+        Feito para criar vídeos musicais com <span>♫</span>
       </footer>
     </section>
 
-    <!-- PRÉVIA FIXA À DIREITA -->
     <aside class="preview-panel">
       <div class="preview-heading">
         <div>
-          <p class="eyebrow">MONITOR DE VÍDEO</p>
           <h2>Prévia do vídeo</h2>
-          <p class="muted">Resultado em tempo real.</p>
+          <p>Visualização em tempo real</p>
         </div>
-        <span class="preview-live"><span></span> AO VIVO</span>
+
+        <span class="preview-live">
+          <span></span> AO VIVO
+        </span>
       </div>
 
       <div class="canvas-wrap">
@@ -262,15 +392,19 @@
           <span class="meta-label">RESOLUÇÃO</span>
           <strong id="resolucao">720 × 1280</strong>
         </div>
+
         <div>
-          <span class="meta-label">PROPORÇÃO</span>
-          <strong id="proporcao">9:16</strong>
+          <span class="meta-label">FORMATO</span>
+          <strong id="proporcao">9:16 · Vertical</strong>
         </div>
       </div>
 
       <div class="preview-tip">
-        <span>ⓘ</span>
-        <p>A prévia acompanha a reprodução e mostra o texto no momento correspondente da música.</p>
+        <span>✦</span>
+        <p>
+          <strong>Dica:</strong> selecione uma imagem e arraste-a para ajustar
+          sua posição no vídeo.
+        </p>
       </div>
     </aside>
 
@@ -279,39 +413,50 @@
   <script src="./script.js"></script>
 
   <script>
-    // Realça o item de navegação correspondente à seção visível.
     (() => {
       const links = document.querySelectorAll(".nav-item");
-      const sections = document.querySelectorAll(".editor-section[id]");
+      const secoes = document.querySelectorAll(
+        "#sec-musica, #sec-letra, #sec-legendas, #sec-aparencia, #sec-exportar"
+      );
 
-      if (!("IntersectionObserver" in window)) return;
+      if ("IntersectionObserver" in window) {
+        const observador = new IntersectionObserver((entradas) => {
+          const visiveis = entradas
+            .filter(entrada => entrada.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
 
-      const observer = new IntersectionObserver(entries => {
-        const visible = entries
-          .filter(entry => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (!visiveis.length) return;
 
-        if (!visible) return;
+          const id = visiveis[0].target.id;
 
-        links.forEach(link => {
-          link.classList.toggle(
-            "selected",
-            link.getAttribute("href") === "#" + visible.target.id
-          );
+          links.forEach(link => {
+            const ativo = link.getAttribute("href") === "#" + id;
+            link.classList.toggle("selected", ativo);
+            link.classList.toggle("active", ativo);
+          });
+        }, {
+          rootMargin: "-100px 0px -55% 0px",
+          threshold: [0.05, 0.2, 0.5]
         });
-      }, {
-        rootMargin: "-12% 0px -65% 0px",
-        threshold: [0, 0.1, 0.25]
-      });
 
-      sections.forEach(section => observer.observe(section));
+        secoes.forEach(secao => observador.observe(secao));
+      }
+
+      const formato = document.getElementById("formato");
+      const proporcao = document.getElementById("proporcao");
+
+      function atualizarProporcao() {
+        if (!formato || !proporcao) return;
+
+        proporcao.textContent = formato.value === "horizontal"
+          ? "16:9 · Horizontal"
+          : "9:16 · Vertical";
+      }
+
+      formato?.addEventListener("change", atualizarProporcao);
+      atualizarProporcao();
     })();
-
-    // Atualiza a indicação da proporção sem alterar os IDs usados pelo script.
-    document.getElementById("formato").addEventListener("change", event => {
-      document.getElementById("proporcao").textContent =
-        event.target.value === "vertical" ? "9:16" : "16:9";
-    });
   </script>
+
 </body>
 </html>
