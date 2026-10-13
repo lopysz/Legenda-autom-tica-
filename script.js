@@ -2602,3 +2602,182 @@ window.addEventListener("beforeunload", () => {
     configurarControlesAnimacao();
   }
 })();
+/* =========================================================
+   POPUPS FLOUTANTES — mover/mostrar panel-section como modal
+   (Cole este bloco NO FINAL do seu script.js)
+========================================================= */
+
+(function () {
+  const backdrop = document.getElementById("floatingBackdrop");
+  const host = document.getElementById("floatingHost");
+
+  if (!backdrop || !host) {
+    // Se os elementos ainda não existirem, espera DOMContentLoaded
+    document.addEventListener("DOMContentLoaded", initFloating);
+  } else {
+    initFloating();
+  }
+
+  function initFloating() {
+    const bd = document.getElementById("floatingBackdrop");
+    const ht = document.getElementById("floatingHost");
+    if (!bd || !ht) return;
+
+    let abertoState = {
+      secao: null,
+      originalParent: null,
+      originalNext: null,
+      wrapper: null
+    };
+
+    function restaurarSecao() {
+      const s = abertoState.secao;
+      const p = abertoState.originalParent;
+      const next = abertoState.originalNext;
+      const wrapper = abertoState.wrapper;
+      if (!s) return;
+
+      // se a seção ainda está dentro do painel flutuante, devolve ao local original
+      if (wrapper && s.parentNode && p) {
+        try {
+          p.insertBefore(s, next);
+        } catch (e) {
+          // fallback: append ao parent
+          if (p && p.appendChild) p.appendChild(s);
+        }
+      }
+
+      abertoState = { secao: null, originalParent: null, originalNext: null, wrapper: null };
+    }
+
+    function fecharPainel() {
+      const wrapper = abertoState.wrapper;
+      if (!wrapper) return;
+
+      // remove classe de visibilidade (anima saída)
+      wrapper.classList.remove("open");
+      bd.classList.remove("visible");
+
+      // restaura a seção ao seu lugar antes de remover o wrapper
+      restaurarSecao();
+
+      // remove wrapper depois da animação
+      setTimeout(() => {
+        if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+      }, 200);
+
+      // restaura scroll/overflow do body
+      document.body.style.overflow = "";
+
+      // tenta devolver foco ao último elemento ativo
+      if (wrapper.__lastFocus && typeof wrapper.__lastFocus.focus === "function") {
+        try { wrapper.__lastFocus.focus(); } catch (e) {}
+      }
+
+      // limpa listeners
+      bd.onclick = null;
+    }
+
+    function abrirPainel(secao) {
+      if (!secao) return;
+
+      // se já tiver um aberto, fecha primeiro
+      if (abertoState.wrapper) fecharPainel();
+
+      // salva referência original
+      abertoState.secao = secao;
+      abertoState.originalParent = secao.parentNode;
+      abertoState.originalNext = secao.nextSibling;
+
+      // cria wrapper do painel
+      const wrapper = document.createElement("div");
+      wrapper.className = "floating-panel";
+      wrapper.setAttribute("role", "dialog");
+      wrapper.setAttribute("aria-modal", "true");
+
+      // header com título e fechar
+      const header = document.createElement("div");
+      header.className = "floating-panel-header";
+
+      const tituloEl = document.createElement("h3");
+      tituloEl.textContent = secao.querySelector(".section-title h2")?.textContent || "Configuração";
+
+      const fecharBtn = document.createElement("button");
+      fecharBtn.type = "button";
+      fecharBtn.className = "floating-panel-close";
+      fecharBtn.setAttribute("aria-label", "Fechar painel");
+      fecharBtn.textContent = "×";
+
+      fecharBtn.addEventListener("click", () => fecharPainel());
+
+      header.appendChild(tituloEl);
+      header.appendChild(fecharBtn);
+
+      // body do painel (onde vamos mover a seção)
+      const body = document.createElement("div");
+      body.className = "floating-panel-body";
+
+      // mover a seção REAL para dentro do painel (não clonar)
+      body.appendChild(secao);
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(body);
+
+      // guarda último foco para restaurar depois
+      wrapper.__lastFocus = document.activeElement;
+
+      // anexa wrapper ao host
+      ht.appendChild(wrapper);
+
+      // marca no state
+      abertoState.wrapper = wrapper;
+
+      // mostra com animação
+      requestAnimationFrame(() => {
+        wrapper.classList.add("open");
+        bd.classList.add("visible");
+      });
+
+      // trava overflow da página enquanto aberto
+      document.body.style.overflow = "hidden";
+
+      // clique fora fecha (backdrop)
+      bd.onclick = (ev) => {
+        if (ev.target === bd) fecharPainel();
+      };
+
+      // ESC fecha
+      const onKey = (ev) => {
+        if (ev.key === "Escape") {
+          fecharPainel();
+          document.removeEventListener("keydown", onKey);
+        }
+      };
+      document.addEventListener("keydown", onKey);
+
+      // foco no primeiro campo do painel
+      setTimeout(() => {
+        const primeiro = wrapper.querySelector("input, button, textarea, select, summary");
+        if (primeiro && typeof primeiro.focus === "function") primeiro.focus();
+      }, 80);
+    }
+
+    // habilita clique no título (section-title) para abrir o painel
+    document.querySelectorAll(".panel-section").forEach((secao) => {
+      const titulo = secao.querySelector(".section-title");
+      if (!titulo) return;
+
+      // adicionar cursor interativo caso deseje
+      titulo.style.cursor = "pointer";
+
+      titulo.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        abrirPainel(secao);
+      });
+    });
+
+    // fechar quando o host receber evento custom de fechamento (opcional)
+    ht.addEventListener("closeFloating", () => fecharPainel());
+  }
+})();
