@@ -1809,3 +1809,90 @@ button:disabled {
     font-size: 12px;
   }
 }
+/* ==========================================
+   IMAGENS E FIGURINHAS — LYRIC STUDIO
+========================================== */
+
+.sticker-tools {
+  min-width: 0;
+  margin-top: 25px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #0e1620;
+}
+
+.sticker-heading {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.sticker-tools > p:first-of-type {
+  margin-top: 0;
+}
+
+.sticker-tools input[type="file"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sticker-tools .range-heading {
+  margin-top: 17px;
+}
+
+.sticker-tools .range-heading label {
+  margin: 0;
+}
+
+.sticker-buttons {
+  margin-top: 17px;
+}
+
+.sticker-buttons > * {
+  min-width: 0;
+  flex: 1 1 120px;
+}
+
+.sticker-buttons button.danger {
+  border-color: rgba(239, 119, 119, .35);
+  background: rgba(239, 119, 119, .12);
+  color: #ffaaaa;
+}
+
+#estadoImagem {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+#nomeImagem {
+  overflow-wrap: anywhere;
+}
+
+#canvas {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#canvas.is-dragging {
+  cursor: grabbing;
+}
+
+#canvas.has-selection {
+  cursor: grab;
+}
+
+@media (max-width: 760px) {
+  .sticker-tools {
+    padding: 12px;
+  }
+
+  .sticker-buttons {
+    flex-direction: row;
+  }
+
+  .sticker-buttons > * {
+    flex: 1 1 120px;
+  }
+}
