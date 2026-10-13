@@ -2241,3 +2241,287 @@ atualizarBotaoMenu();
     iniciarNovaInterface();
   }
 })();
+
+/* ==========================================
+   LYRIC STUDIO — ANIMAÇÕES DE ADESIVOS
+========================================== */
+
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+
+  const camposAnimacao = [
+    "animacaoEntrada",
+    "animacaoLoop",
+    "animacaoSaida",
+    "animacaoInicio",
+    "animacaoFim",
+    "animacaoVelocidade"
+  ];
+
+  function adesivoAtual() {
+    return elementosVisuais.find(
+      item => item.id === imagemSelecionada
+    ) || null;
+  }
+
+  function informarAnimacao(texto) {
+    const estado = $("estadoAnimacao");
+    if (estado) estado.textContent = texto;
+  }
+
+  function carregarControlesAnimacao(item) {
+    if (!item) return;
+
+    const anim = item.animacao || {};
+
+    $("animacaoEntrada").value = anim.entrada || "none";
+    $("animacaoLoop").value = anim.loop || "none";
+    $("animacaoSaida").value = anim.saida || "none";
+    $("animacaoInicio").value = anim.inicio ?? 0;
+    $("animacaoFim").value = anim.fim ?? 0;
+    $("animacaoVelocidade").value = anim.velocidade ?? 1;
+  }
+
+  function aplicarAnimacao() {
+    const item = adesivoAtual();
+
+    if (!item) {
+      informarAnimacao("Adicione ou selecione um adesivo primeiro.");
+      return;
+    }
+
+    const inicio = Math.max(
+      0,
+      Number($("animacaoInicio").value) || 0
+    );
+
+    const fim = Math.max(
+      0,
+      Number($("animacaoFim").value) || 0
+    );
+
+    if (fim > 0 && fim <= inicio) {
+      informarAnimacao(
+        "O tempo final precisa ser maior que o inicial."
+      );
+      return;
+    }
+
+    item.animacao = {
+      entrada: $("animacaoEntrada").value,
+      loop: $("animacaoLoop").value,
+      saida: $("animacaoSaida").value,
+      inicio,
+      fim,
+      velocidade: Math.max(
+        0.1,
+        Number($("animacaoVelocidade").value) || 1
+      )
+    };
+
+    informarAnimacao("Animações aplicadas ao adesivo selecionado.");
+    renderizar();
+  }
+
+  function limparAnimacao() {
+    const item = adesivoAtual();
+
+    if (!item) {
+      informarAnimacao("Selecione um adesivo primeiro.");
+      return;
+    }
+
+    delete item.animacao;
+    carregarControlesAnimacao(item);
+    informarAnimacao("As animações deste adesivo foram removidas.");
+    renderizar();
+  }
+
+  function obterTransformacaoAnimada(item, tempo) {
+    const anim = item.animacao || {};
+    const velocidade = Math.max(0.1, Number(anim.velocidade) || 1);
+    const inicio = Math.max(0, Number(anim.inicio) || 0);
+    const fimConfigurado = Math.max(0, Number(anim.fim) || 0);
+
+    const duracaoAudio = Number(audio.duration);
+    const fim = fimConfigurado > 0
+      ? fimConfigurado
+      : (Number.isFinite(duracaoAudio) && duracaoAudio > 0
+          ? duracaoAudio
+          : Infinity);
+
+    if (tempo < inicio || tempo >= fim) {
+      return { alpha: 0, escala: 1, dx: 0, dy: 0, rotacao: 0 };
+    }
+
+    const tempoLocal = (tempo - inicio) * velocidade;
+    const entradaDuracao = 0.65;
+    const saidaDuracao = 0.5;
+    const restante = fim - tempo;
+
+    let alpha = 1;
+    let escala = 1;
+    let dx = 0;
+    let dy = 0;
+    let rotacao = 0;
+
+    const entrada = anim.entrada || "none";
+    const saida = anim.saida || "none";
+    const loop = anim.loop || "none";
+
+    if (tempoLocal < entradaDuracao) {
+      const p = Math.min(1, tempoLocal / entradaDuracao);
+
+      if (entrada === "fade") {
+        alpha = p;
+      } else if (entrada === "zoom") {
+        escala *= 0.2 + 0.8 * p;
+      } else if (entrada === "bounce") {
+        escala *= 0.65 + 0.35 * p
+          + Math.sin(p * Math.PI) * 0.25;
+        dy -= Math.sin(p * Math.PI) * 35;
+      } else if (entrada === "slide") {
+        dy += (1 - p) * 100;
+        alpha = p;
+      } else if (entrada === "spin") {
+        rotacao += (1 - p) * Math.PI * 2;
+        escala *= 0.5 + 0.5 * p;
+      }
+    }
+
+    if (Number.isFinite(restante) && restante < saidaDuracao) {
+      const p = Math.max(0, restante / saidaDuracao);
+
+      if (saida === "fade") {
+        alpha *= p;
+      } else if (saida === "shrink") {
+        escala *= p;
+        alpha *= p;
+      } else if (saida === "zoomOut") {
+        escala *= 0.5 + (1 - p) * 1.5;
+        alpha *= p;
+      }
+    }
+
+    const fase = tempoLocal * Math.PI * 2;
+
+    if (loop === "rotate") {
+      rotacao += tempoLocal * Math.PI;
+    } else if (loop === "float") {
+      dy += Math.sin(fase) * 12;
+    } else if (loop === "swing") {
+      rotacao += Math.sin(fase) * 0.18;
+    } else if (loop === "pulse") {
+      escala *= 1 + Math.sin(fase) * 0.08;
+    } else if (loop === "shake") {
+      dx += Math.sin(tempoLocal * 35) * 4;
+      dy += Math.cos(tempoLocal * 29) * 3;
+    }
+
+    return { alpha, escala, dx, dy, rotacao };
+  }
+
+  /*
+   * Esta função é usada pela função existente desenharAdesivos().
+   * Ela desenha a imagem com a transformação calculada pelo tempo do áudio.
+   */
+  window.desenharAdesivoAnimado = function (item, tempo) {
+    if (!item.imagem || !item.imagem.complete) return;
+
+    const animacao = obterTransformacaoAnimada(item, tempo);
+
+    if (animacao.alpha <= 0) return;
+
+    const escalaBase = (Number(item.escala) || 100) / 100;
+    const largura = item.largura * escalaBase * animacao.escala;
+    const altura = item.altura * escalaBase * animacao.escala;
+
+    ctx.save();
+    ctx.globalAlpha *= animacao.alpha;
+    ctx.translate(item.x + animacao.dx, item.y + animacao.dy);
+    ctx.rotate(
+      (Number(item.rotacao) || 0) * Math.PI / 180
+      + animacao.rotacao
+    );
+
+    ctx.drawImage(
+      item.imagem,
+      -largura / 2,
+      -altura / 2,
+      largura,
+      altura
+    );
+
+    if (!exportando && item.id === imagemSelecionada) {
+      ctx.strokeStyle = "#72f0b0";
+      ctx.lineWidth = Math.max(1, canvas.width / 720);
+      ctx.setLineDash([7, 5]);
+      ctx.strokeRect(
+        -largura / 2,
+        -altura / 2,
+        largura,
+        altura
+      );
+      ctx.setLineDash([]);
+    }
+
+    ctx.restore();
+  };
+
+  function configurarControlesAnimacao() {
+    $("aplicarAnimacao")?.addEventListener(
+      "click",
+      aplicarAnimacao
+    );
+
+    $("limparAnimacao")?.addEventListener(
+      "click",
+      limparAnimacao
+    );
+
+    camposAnimacao.forEach(id => {
+      $(id)?.addEventListener("change", () => {
+        const item = adesivoAtual();
+        if (item) informarAnimacao(
+          "Configurações alteradas. Clique em Aplicar animação."
+        );
+      });
+    });
+
+    /*
+     * O evento change existente de arquivoImagem continua responsável
+     * por adicionar a imagem. Este listener apenas atualiza os controles.
+     */
+    $("arquivoImagem")?.addEventListener("change", () => {
+      setTimeout(() => {
+        const item = adesivoAtual();
+        if (item) carregarControlesAnimacao(item);
+      }, 100);
+    });
+
+    $("centralizarImagem")?.addEventListener("click", () => {
+      const item = adesivoAtual();
+      if (item) carregarControlesAnimacao(item);
+    });
+
+    $("excluirImagem")?.addEventListener("click", () => {
+      setTimeout(() => {
+        const item = adesivoAtual();
+        if (item) carregarControlesAnimacao(item);
+        else informarAnimacao("Selecione um adesivo para animá-lo.");
+      }, 50);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      configurarControlesAnimacao
+    );
+  } else {
+    configurarControlesAnimacao();
+  }
+})();
+
