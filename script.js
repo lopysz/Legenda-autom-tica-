@@ -1,3 +1,4 @@
+
 "use strict";
 
 /* =========================================================
@@ -42,13 +43,6 @@ const fundoLUTctx = fundoLUT.getContext("2d", {
   willReadFrequently: true
 });
 
-const tiposLUT = {
-  size: 0,
-  domainMin: [0, 0, 0],
-  domainMax: [1, 1, 1],
-  tabela: []
-};
-
 /* =========================================================
    UTILITÁRIOS
 ========================================================= */
@@ -58,48 +52,32 @@ function mensagem(texto) {
 }
 
 function formatarTempo(segundos) {
-  if (!Number.isFinite(segundos) || segundos < 0) {
-    segundos = 0;
-  }
+  if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
 
   const minutos = Math.floor(segundos / 60);
   const segundosRestantes = Math.floor(segundos % 60);
 
-  return (
-    String(minutos).padStart(2, "0") +
-    ":" +
-    String(segundosRestantes).padStart(2, "0")
-  );
+  return String(minutos).padStart(2, "0") + ":" +
+    String(segundosRestantes).padStart(2, "0");
 }
 
 function tempoParaCampo(segundos) {
-  if (!Number.isFinite(segundos) || segundos < 0) {
-    segundos = 0;
-  }
+  if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
 
   const horas = Math.floor(segundos / 3600);
   const minutos = Math.floor((segundos % 3600) / 60);
   const segundosRestantes = segundos % 60;
 
-  return (
-    String(horas).padStart(2, "0") +
-    ":" +
-    String(minutos).padStart(2, "0") +
-    ":" +
-    segundosRestantes.toFixed(2).padStart(5, "0")
-  );
+  return String(horas).padStart(2, "0") + ":" +
+    String(minutos).padStart(2, "0") + ":" +
+    segundosRestantes.toFixed(2).padStart(5, "0");
 }
 
 function campoParaTempo(valor) {
-  if (typeof valor === "number") {
-    return Math.max(0, valor);
-  }
+  if (typeof valor === "number") return Math.max(0, valor);
 
   const texto = String(valor || "").trim();
-
-  if (!texto) {
-    return 0;
-  }
+  if (!texto) return 0;
 
   if (/^\d+([.,]\d+)?$/.test(texto)) {
     return Math.max(0, Number(texto.replace(",", ".")) || 0);
@@ -107,18 +85,12 @@ function campoParaTempo(valor) {
 
   const partes = texto.split(":").map(Number);
 
-  if (
-    partes.some(n => !Number.isFinite(n)) ||
-    partes.length > 3
-  ) {
+  if (partes.some(n => !Number.isFinite(n)) || partes.length > 3) {
     return 0;
   }
 
   if (partes.length === 3) {
-    return Math.max(
-      0,
-      partes[0] * 3600 + partes[1] * 60 + partes[2]
-    );
+    return Math.max(0, partes[0] * 3600 + partes[1] * 60 + partes[2]);
   }
 
   if (partes.length === 2) {
@@ -177,13 +149,11 @@ function definirTamanhoTexto() {
 }
 
 function definirTamanhoImagem() {
-  $("valorTamanhoImagem").textContent =
-    $("tamanhoImagem").value + "%";
+  $("valorTamanhoImagem").textContent = $("tamanhoImagem").value + "%";
 }
 
 function definirRotacaoImagem() {
-  $("valorRotacaoImagem").textContent =
-    $("rotacaoImagem").value + "°";
+  $("valorRotacaoImagem").textContent = $("rotacaoImagem").value + "°";
 }
 
 function legendaSelecionada() {
@@ -202,12 +172,8 @@ function prepararAudioContext() {
     return;
   }
 
-  const AudioContextClass =
-    window.AudioContext || window.webkitAudioContext;
-
-  if (!AudioContextClass) {
-    return;
-  }
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
 
   audioContext = new AudioContextClass();
 
@@ -219,7 +185,6 @@ function prepararAudioContext() {
     analisador.smoothingTimeConstant = 0.78;
 
     dadosAudio = new Uint8Array(analisador.frequencyBinCount);
-
     audioDestination = audioContext.createMediaStreamDestination();
 
     sourceNode.connect(analisador);
@@ -232,7 +197,6 @@ function prepararAudioContext() {
 
 $("arquivoAudio").addEventListener("change", event => {
   const arquivo = event.target.files[0];
-
   if (!arquivo) return;
 
   if (!arquivo.type.startsWith("audio/")) {
@@ -243,7 +207,6 @@ $("arquivoAudio").addEventListener("change", event => {
   if (audioURL) URL.revokeObjectURL(audioURL);
 
   audio.pause();
-
   audioURL = URL.createObjectURL(arquivo);
   audio.src = audioURL;
   audio.load();
@@ -253,7 +216,6 @@ $("arquivoAudio").addEventListener("change", event => {
 
   audio.addEventListener("loadedmetadata", function aoCarregar() {
     audio.removeEventListener("loadedmetadata", aoCarregar);
-
     atualizarTempo();
 
     if (legendas.length) {
@@ -301,10 +263,7 @@ $("voltar").addEventListener("click", () => {
 });
 
 $("avancar").addEventListener("click", () => {
-  audio.currentTime = Math.min(
-    obterDuracao() || Infinity,
-    audio.currentTime + 5
-  );
+  audio.currentTime = Math.min(obterDuracao() || Infinity, audio.currentTime + 5);
 });
 
 $("seek").addEventListener("input", () => {
@@ -336,9 +295,7 @@ audio.addEventListener("ended", () => {
 
 audio.addEventListener("error", () => {
   if (audio.src) {
-    mensagem(
-      "O navegador não conseguiu abrir este áudio. Tente outro formato."
-    );
+    mensagem("O navegador não conseguiu abrir este áudio. Tente outro formato.");
   }
 });
 
@@ -354,10 +311,7 @@ $("criarLinhas").addEventListener("click", () => {
     return;
   }
 
-  const linhas = texto
-    .split(/\r?\n/)
-    .map(linha => linha.trim())
-    .filter(Boolean);
+  const linhas = texto.split(/\r?\n/).map(linha => linha.trim()).filter(Boolean);
 
   if (!linhas.length) {
     mensagem("Não foram encontradas linhas na letra.");
@@ -368,16 +322,13 @@ $("criarLinhas").addEventListener("click", () => {
   const intervalo = duracao > 0 ? duracao / linhas.length : 3;
 
   legendas = linhas.map((textoLinha, indice) => ({
-    id: crypto.randomUUID
-      ? crypto.randomUUID()
-      : String(Date.now() + indice),
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + indice),
     texto: textoLinha,
     inicio: indice * intervalo,
     fim: (indice + 1) * intervalo
   }));
 
   indiceSelecionado = 0;
-
   atualizarSeletorLegendas();
   desenharLista();
   renderizar();
@@ -405,9 +356,7 @@ function atualizarSeletorLegendas() {
     const opcao = document.createElement("option");
     opcao.value = indice;
     opcao.textContent =
-      String(indice + 1).padStart(2, "0") + " — " +
-      legenda.texto.slice(0, 55);
-
+      String(indice + 1).padStart(2, "0") + " — " + legenda.texto.slice(0, 55);
     seletor.appendChild(opcao);
   });
 
@@ -417,9 +366,7 @@ function atualizarSeletorLegendas() {
 $("linhaSelecionada").addEventListener("change", () => {
   indiceSelecionado = Number($("linhaSelecionada").value);
 
-  if (!Number.isInteger(indiceSelecionado)) {
-    indiceSelecionado = -1;
-  }
+  if (!Number.isInteger(indiceSelecionado)) indiceSelecionado = -1;
 
   desenharLista();
   renderizar();
@@ -442,7 +389,6 @@ $("marcarInicio").addEventListener("click", () => {
   desenharLista();
   atualizarSeletorLegendas();
   renderizar();
-
   mensagem("Início da legenda atualizado.");
 });
 
@@ -462,10 +408,8 @@ $("marcarTempo").addEventListener("click", () => {
   }
 
   legenda.fim = tempoAtual;
-
   desenharLista();
   renderizar();
-
   mensagem("Fim da legenda atualizado.");
 });
 
@@ -477,10 +421,7 @@ function recalcularFins() {
     legenda.fim = Math.max(legenda.inicio, Number(legenda.fim) || 0);
 
     if (i + 1 < legendas.length && legenda.fim <= legenda.inicio) {
-      legenda.fim = Math.max(
-        legenda.inicio + 0.5,
-        legendas[i + 1].inicio
-      );
+      legenda.fim = Math.max(legenda.inicio + 0.5, legendas[i + 1].inicio);
     }
   }
 }
@@ -488,7 +429,6 @@ function recalcularFins() {
 function selecionarLegenda(indice) {
   indiceSelecionado = indice;
   $("linhaSelecionada").value = String(indice);
-
   desenharLista();
   renderizar();
 }
@@ -512,8 +452,7 @@ function desenharLista() {
   legendas.forEach((legenda, indice) => {
     const linha = document.createElement("div");
 
-    linha.className =
-      "caption-row" +
+    linha.className = "caption-row" +
       (indice === indiceSelecionado ? " selected" : "");
 
     const tempos = document.createElement("div");
@@ -557,9 +496,7 @@ function desenharLista() {
     excluir.textContent = "Excluir";
 
     linha.addEventListener("click", () => {
-      if (indiceSelecionado !== indice) {
-        selecionarLegenda(indice);
-      }
+      if (indiceSelecionado !== indice) selecionarLegenda(indice);
     });
 
     campoInicio.addEventListener("change", () => {
@@ -571,7 +508,6 @@ function desenharLista() {
 
       campoInicio.value = tempoParaCampo(legenda.inicio);
       campoFim.value = tempoParaCampo(legenda.fim);
-
       atualizarSeletorLegendas();
       renderizar();
     });
@@ -595,11 +531,7 @@ function desenharLista() {
 
     irInicio.addEventListener("click", event => {
       event.stopPropagation();
-
-      if (audio.src) {
-        audio.currentTime = legenda.inicio;
-      }
-
+      if (audio.src) audio.currentTime = legenda.inicio;
       selecionarLegenda(indice);
     });
 
@@ -615,7 +547,6 @@ function desenharLista() {
 
       legendas.splice(indice + 1, 0, nova);
       indiceSelecionado = indice + 1;
-
       atualizarSeletorLegendas();
       desenharLista();
       renderizar();
@@ -623,16 +554,12 @@ function desenharLista() {
 
     excluir.addEventListener("click", event => {
       event.stopPropagation();
-
       legendas.splice(indice, 1);
 
       if (!legendas.length) {
         indiceSelecionado = -1;
       } else {
-        indiceSelecionado = Math.min(
-          indiceSelecionado,
-          legendas.length - 1
-        );
+        indiceSelecionado = Math.min(indiceSelecionado, legendas.length - 1);
       }
 
       atualizarSeletorLegendas();
@@ -661,7 +588,6 @@ function linhaAtiva(tempo) {
 
 $("arquivoFonte").addEventListener("change", async event => {
   const arquivo = event.target.files[0];
-
   if (!arquivo) return;
 
   const extensao = arquivo.name.split(".").pop().toLowerCase();
@@ -672,31 +598,19 @@ $("arquivoFonte").addEventListener("change", async event => {
   }
 
   try {
-    if (fonteURL) {
-      URL.revokeObjectURL(fonteURL);
-    }
+    if (fonteURL) URL.revokeObjectURL(fonteURL);
 
     fonteURL = URL.createObjectURL(arquivo);
 
     const nomeInterno = "FonteLyricCustom";
-
-    const face = new FontFace(
-      nomeInterno,
-      `url("${fonteURL}")`
-    );
+    const face = new FontFace(nomeInterno, `url("${fonteURL}")`);
 
     await face.load();
     document.fonts.add(face);
-
     fontePersonalizada = nomeInterno;
 
-    const opcao = [...$("fonteTexto").options].find(
-      item => item.value === "custom"
-    );
-
-    if (opcao) {
-      opcao.textContent = arquivo.name;
-    }
+    const opcao = [...$("fonteTexto").options].find(item => item.value === "custom");
+    if (opcao) opcao.textContent = arquivo.name;
 
     $("fonteTexto").value = "custom";
     $("nomeFonte").textContent = "Fonte carregada: " + arquivo.name;
@@ -715,7 +629,6 @@ $("arquivoFonte").addEventListener("change", async event => {
 
 $("arquivoVideo").addEventListener("change", event => {
   const arquivo = event.target.files[0];
-
   if (!arquivo) return;
 
   const extensao = arquivo.name.split(".").pop().toLowerCase();
@@ -725,12 +638,9 @@ $("arquivoVideo").addEventListener("change", event => {
     return;
   }
 
-  if (videoURL) {
-    URL.revokeObjectURL(videoURL);
-  }
+  if (videoURL) URL.revokeObjectURL(videoURL);
 
   videoFundo.pause();
-
   videoURL = URL.createObjectURL(arquivo);
   videoFundo.src = videoURL;
   videoFundo.load();
@@ -739,11 +649,8 @@ $("arquivoVideo").addEventListener("change", event => {
 
   videoFundo.onloadeddata = () => {
     videoFundo.currentTime = 0;
-
     videoFundo.play().catch(() => {
-      mensagem(
-        "Vídeo carregado. Clique em Reproduzir fundo para iniciar."
-      );
+      mensagem("Vídeo carregado. Clique em Reproduzir fundo para iniciar.");
     });
 
     mensagem("Vídeo de fundo carregado.");
@@ -783,7 +690,6 @@ $("removerVideo").addEventListener("click", () => {
 
   $("arquivoVideo").value = "";
   $("nomeVideo").textContent = "Nenhum vídeo de fundo selecionado";
-
   mensagem("Vídeo de fundo removido.");
   renderizar();
 });
@@ -801,10 +707,7 @@ function analisarLUT(conteudo) {
   const tabela = [];
 
   for (const linhaOriginal of linhas) {
-    const linha = linhaOriginal
-      .replace(/#.*/, "")
-      .trim();
-
+    const linha = linhaOriginal.replace(/#.*/, "").trim();
     if (!linha) continue;
 
     const partes = linha.split(/\s+/);
@@ -827,21 +730,13 @@ function analisarLUT(conteudo) {
       continue;
     }
 
-    if (
-      ["LUT_1D_SIZE", "LUT_1D_INPUT_RANGE", "LUT_1D_OUTPUT_RANGE"]
-        .includes(comando)
-    ) {
-      throw new Error(
-        "Esta ferramenta aceita LUT 3D. Exporte a LUT como .CUBE 3D."
-      );
+    if (["LUT_1D_SIZE", "LUT_1D_INPUT_RANGE", "LUT_1D_OUTPUT_RANGE"].includes(comando)) {
+      throw new Error("Esta ferramenta aceita LUT 3D. Exporte a LUT como .CUBE 3D.");
     }
 
     if (partes.length >= 3) {
       const valores = partes.slice(0, 3).map(Number);
-
-      if (valores.every(Number.isFinite)) {
-        tabela.push(valores);
-      }
+      if (valores.every(Number.isFinite)) tabela.push(valores);
     }
   }
 
@@ -855,26 +750,16 @@ function analisarLUT(conteudo) {
     );
   }
 
-  return {
-    size: tamanho,
-    domainMin,
-    domainMax,
-    tabela
-  };
+  return { size: tamanho, domainMin, domainMax, tabela };
 }
 
 $("arquivoLUT").addEventListener("change", async event => {
   const arquivo = event.target.files[0];
-
   if (!arquivo) return;
 
   try {
-    const conteudo = await arquivo.text();
-    lut = analisarLUT(conteudo);
-
-    $("nomeLUT").textContent =
-      `${arquivo.name} — LUT 3D ${lut.size}³ carregada`;
-
+    lut = analisarLUT(await arquivo.text());
+    $("nomeLUT").textContent = `${arquivo.name} — LUT 3D ${lut.size}³ carregada`;
     mensagem("LUT carregada e aplicada ao vídeo de fundo.");
     renderizar();
   } catch (erro) {
@@ -888,16 +773,13 @@ $("removerLUT").addEventListener("click", () => {
   lut = null;
   $("arquivoLUT").value = "";
   $("nomeLUT").textContent = "Nenhuma LUT selecionada";
-
   mensagem("LUT removida.");
   renderizar();
 });
 
 function obterPontoLUT(r, g, b) {
   const n = lut.size;
-
-  const index = (ri, gi, bi) =>
-    (bi * n * n) + (gi * n) + ri;
+  const index = (ri, gi, bi) => bi * n * n + gi * n + ri;
 
   const r0 = Math.floor(r);
   const g0 = Math.floor(g);
@@ -915,7 +797,6 @@ function obterPontoLUT(r, g, b) {
   const c100 = lut.tabela[index(r1, g0, b0)];
   const c010 = lut.tabela[index(r0, g1, b0)];
   const c110 = lut.tabela[index(r1, g1, b0)];
-
   const c001 = lut.tabela[index(r0, g0, b1)];
   const c101 = lut.tabela[index(r1, g0, b1)];
   const c011 = lut.tabela[index(r0, g1, b1)];
@@ -942,14 +823,10 @@ function aplicarLUTAoFundo() {
   if (!lut || videoFundo.readyState < 2) return false;
 
   const largura = 240;
-  const altura = Math.max(
-    1,
-    Math.round(largura * canvas.height / canvas.width)
-  );
+  const altura = Math.max(1, Math.round(largura * canvas.height / canvas.width));
 
   fundoLUT.width = largura;
   fundoLUT.height = altura;
-
   fundoLUTctx.drawImage(videoFundo, 0, 0, largura, altura);
 
   let imagem;
@@ -964,28 +841,16 @@ function aplicarLUTAoFundo() {
   const n = lut.size;
 
   for (let i = 0; i < pixels.length; i += 4) {
-    const canais = [
-      pixels[i],
-      pixels[i + 1],
-      pixels[i + 2]
-    ];
+    const canais = [pixels[i], pixels[i + 1], pixels[i + 2]];
 
     const normalizados = canais.map((valor, canal) => {
       const minimo = lut.domainMin[canal];
       const maximo = lut.domainMax[canal];
 
-      return limitar(
-        (valor / 255 - minimo) / (maximo - minimo || 1),
-        0,
-        1
-      ) * (n - 1);
+      return limitar((valor / 255 - minimo) / (maximo - minimo || 1), 0, 1) * (n - 1);
     });
 
-    const resultado = obterPontoLUT(
-      normalizados[0],
-      normalizados[1],
-      normalizados[2]
-    );
+    const resultado = obterPontoLUT(normalizados[0], normalizados[1], normalizados[2]);
 
     pixels[i] = limitar(Math.round(resultado[0] * 255), 0, 255);
     pixels[i + 1] = limitar(Math.round(resultado[1] * 255), 0, 255);
@@ -993,9 +858,7 @@ function aplicarLUTAoFundo() {
   }
 
   fundoLUTctx.putImageData(imagem, 0, 0);
-
   ctx.drawImage(fundoLUT, 0, 0, canvas.width, canvas.height);
-
   return true;
 }
 
@@ -1005,7 +868,6 @@ function aplicarLUTAoFundo() {
 
 $("arquivoProjeto").addEventListener("change", event => {
   const arquivo = event.target.files[0];
-
   if (!arquivo) return;
 
   const extensao = arquivo.name.split(".").pop().toLowerCase();
@@ -1033,7 +895,6 @@ $("arquivoProjeto").addEventListener("change", event => {
 
 $("arquivoImagem").addEventListener("change", event => {
   const arquivo = event.target.files[0];
-
   if (!arquivo) return;
 
   if (!arquivo.type.startsWith("image/")) {
@@ -1061,21 +922,32 @@ $("arquivoImagem").addEventListener("change", event => {
       largura: Math.max(1, imagem.width * escala),
       altura: Math.max(1, imagem.height * escala),
       escala: 100,
-      rotacao: 0
+      rotacao: 0,
+      animacao: {
+        entrada: "none",
+        loop: "none",
+        saida: "none",
+        inicio: 0,
+        fim: 0,
+        velocidade: 1
+      }
     };
 
     elementosVisuais.push(item);
     imagemSelecionada = item.id;
 
     $("nomeImagem").textContent = arquivo.name;
-    $("estadoImagem").textContent =
-      "Imagem adicionada. Arraste-a na prévia para posicionar.";
+    $("estadoImagem").textContent = "Imagem adicionada. Arraste-a na prévia para posicionar.";
 
     $("tamanhoImagem").value = 100;
     $("rotacaoImagem").value = 0;
 
     definirTamanhoImagem();
     definirRotacaoImagem();
+
+    if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
+      window.carregarControlesAnimacaoAdesivo(item);
+    }
 
     renderizar();
     mensagem("Imagem adicionada ao vídeo.");
@@ -1095,7 +967,6 @@ function itemImagemSelecionada() {
 
 $("tamanhoImagem").addEventListener("input", () => {
   definirTamanhoImagem();
-
   const item = itemImagemSelecionada();
 
   if (item) {
@@ -1106,7 +977,6 @@ $("tamanhoImagem").addEventListener("input", () => {
 
 $("rotacaoImagem").addEventListener("input", () => {
   definirRotacaoImagem();
-
   const item = itemImagemSelecionada();
 
   if (item) {
@@ -1125,7 +995,6 @@ $("centralizarImagem").addEventListener("click", () => {
 
   item.x = canvas.width / 2;
   item.y = canvas.height / 2;
-
   renderizar();
 });
 
@@ -1137,17 +1006,16 @@ $("excluirImagem").addEventListener("click", () => {
     return;
   }
 
-  elementosVisuais = elementosVisuais.filter(
-    imagem => imagem.id !== item.id
-  );
-
+  elementosVisuais = elementosVisuais.filter(imagem => imagem.id !== item.id);
   URL.revokeObjectURL(item.url);
-
   imagemSelecionada = null;
 
   $("nomeImagem").textContent = "Nenhuma imagem selecionada";
-  $("estadoImagem").textContent =
-    "Você pode arrastar a imagem diretamente na prévia.";
+  $("estadoImagem").textContent = "Você pode arrastar a imagem diretamente na prévia.";
+
+  if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
+    window.carregarControlesAnimacaoAdesivo(null);
+  }
 
   renderizar();
 });
@@ -1164,10 +1032,8 @@ function obterCoordenadas(evento) {
 function encontrarImagem(x, y) {
   for (let i = elementosVisuais.length - 1; i >= 0; i--) {
     const item = elementosVisuais[i];
-
     const dx = x - item.x;
     const dy = y - item.y;
-
     const angulo = -item.rotacao * Math.PI / 180;
 
     const rx = dx * Math.cos(angulo) - dy * Math.sin(angulo);
@@ -1177,10 +1043,7 @@ function encontrarImagem(x, y) {
     const largura = item.largura * escala;
     const altura = item.altura * escala;
 
-    if (
-      Math.abs(rx) <= largura / 2 &&
-      Math.abs(ry) <= altura / 2
-    ) {
+    if (Math.abs(rx) <= largura / 2 && Math.abs(ry) <= altura / 2) {
       return item;
     }
   }
@@ -1206,7 +1069,19 @@ canvas.addEventListener("pointerdown", evento => {
     definirTamanhoImagem();
     definirRotacaoImagem();
 
+    if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
+      window.carregarControlesAnimacaoAdesivo(item);
+    }
+
     $("estadoImagem").textContent = "Arrastando imagem selecionada.";
+    renderizar();
+  } else {
+    imagemSelecionada = null;
+
+    if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
+      window.carregarControlesAnimacaoAdesivo(null);
+    }
+
     renderizar();
   }
 });
@@ -1216,12 +1091,10 @@ canvas.addEventListener("pointermove", evento => {
 
   const posicao = obterCoordenadas(evento);
   const item = itemImagemSelecionada();
-
   if (!item) return;
 
   item.x += posicao.x - ultimaPosicao.x;
   item.y += posicao.y - ultimaPosicao.y;
-
   ultimaPosicao = posicao;
 
   renderizar();
@@ -1234,15 +1107,6 @@ function encerrarArrasto() {
 
 canvas.addEventListener("pointerup", encerrarArrasto);
 canvas.addEventListener("pointercancel", encerrarArrasto);
-
-canvas.addEventListener("pointerdown", evento => {
-  const posicao = obterCoordenadas(evento);
-
-  if (!encontrarImagem(posicao.x, posicao.y)) {
-    imagemSelecionada = null;
-    renderizar();
-  }
-});
 
 /* =========================================================
    DESENHO DO TEXTO E EFEITOS
@@ -1270,7 +1134,6 @@ function quebrarTexto(texto, larguraMaxima) {
   }
 
   if (linha) linhas.push(linha);
-
   return linhas;
 }
 
@@ -1280,9 +1143,7 @@ function desenharLegenda(legenda, tempo) {
   const largura = canvas.width;
   const altura = canvas.height;
 
-  const tamanhoBase =
-    Number($("tamanhoTexto").value) * largura / 720;
-
+  const tamanhoBase = Number($("tamanhoTexto").value) * largura / 720;
   const fonteSelecionada = $("fonteTexto").value;
   const familia = fonteSelecionada === "custom"
     ? (fontePersonalizada || "Arial")
@@ -1296,12 +1157,7 @@ function desenharLegenda(legenda, tempo) {
   const corEfeito = corValida($("corEfeito").value, "#000000");
 
   const duracaoLegenda = Math.max(0.01, legenda.fim - legenda.inicio);
-  const progresso = limitar(
-    (tempo - legenda.inicio) / duracaoLegenda,
-    0,
-    1
-  );
-
+  const progresso = limitar((tempo - legenda.inicio) / duracaoLegenda, 0, 1);
   const tempoEntrada = Math.max(0, tempo - legenda.inicio);
 
   let opacidade = 1;
@@ -1322,11 +1178,7 @@ function desenharLegenda(legenda, tempo) {
   let texto = legenda.texto;
 
   if (animacao === "typewriter") {
-    const quantidade = Math.max(
-      1,
-      Math.floor(texto.length * limitar(tempoEntrada / 1.8, 0, 1))
-    );
-
+    const quantidade = Math.max(1, Math.floor(texto.length * limitar(tempoEntrada / 1.8, 0, 1)));
     texto = texto.slice(0, quantidade);
   }
 
@@ -1357,7 +1209,7 @@ function desenharLegenda(legenda, tempo) {
     centroY = altura * 0.77;
   }
 
-  let yInicial = centroY - alturaTotal / 2 + alturaLinha / 2;
+  const yInicial = centroY - alturaTotal / 2 + alturaLinha / 2;
 
   if (efeito === "shadow") {
     ctx.shadowColor = corEfeito;
@@ -1396,14 +1248,8 @@ function desenharLegenda(legenda, tempo) {
 
       ctx.save();
       ctx.beginPath();
-      ctx.rect(
-        inicio - 2,
-        y - alturaLinha / 2,
-        Math.max(0, limiteDestaque - inicio + 2),
-        alturaLinha
-      );
+      ctx.rect(inicio - 2, y - alturaLinha / 2, Math.max(0, limiteDestaque - inicio + 2), alturaLinha);
       ctx.clip();
-
       ctx.fillStyle = corDestaque;
       ctx.fillText(linha, 0, y, larguraMaxima);
       ctx.restore();
@@ -1433,9 +1279,7 @@ function desenharVisualizador() {
   const baseY = altura * 0.91;
   const cor = corValida($("corDestaque").value, "#72f0b0");
 
-  if (analisador && dadosAudio) {
-    analisador.getByteFrequencyData(dadosAudio);
-  }
+  if (analisador && dadosAudio) analisador.getByteFrequencyData(dadosAudio);
 
   ctx.save();
   ctx.fillStyle = cor;
@@ -1445,30 +1289,17 @@ function desenharVisualizador() {
     let valor;
 
     if (dadosAudio) {
-      const indice = Math.floor(
-        i * dadosAudio.length / quantidade
-      );
-
+      const indice = Math.floor(i * dadosAudio.length / quantidade);
       valor = dadosAudio[indice] / 255;
     } else {
       valor = 0.08;
     }
 
-    const barraAltura = Math.max(
-      3,
-      valor * altura * 0.08
-    );
-
+    const barraAltura = Math.max(3, valor * altura * 0.08);
     const x = inicioX + i * espacamento;
 
     ctx.beginPath();
-    ctx.roundRect(
-      x,
-      baseY - barraAltura,
-      larguraBarra,
-      barraAltura,
-      Math.min(5, larguraBarra / 2)
-    );
+    ctx.roundRect(x, baseY - barraAltura, larguraBarra, barraAltura, Math.min(5, larguraBarra / 2));
     ctx.fill();
   }
 
@@ -1486,9 +1317,7 @@ function desenharFundo() {
   ctx.fillStyle = corValida($("corFundo").value, "#101522");
   ctx.fillRect(0, 0, largura, altura);
 
-  if (videoFundo.readyState < 2 || !videoFundo.videoWidth) {
-    return;
-  }
+  if (videoFundo.readyState < 2 || !videoFundo.videoWidth) return;
 
   if (lut) {
     try {
@@ -1506,18 +1335,24 @@ function desenharFundo() {
   const w = videoFundo.videoWidth * escala;
   const h = videoFundo.videoHeight * escala;
 
-  ctx.drawImage(
-    videoFundo,
-    (largura - w) / 2,
-    (altura - h) / 2,
-    w,
-    h
-  );
+  ctx.drawImage(videoFundo, (largura - w) / 2, (altura - h) / 2, w, h);
 }
 
+/*
+ * CORREÇÃO PRINCIPAL:
+ * Agora cada adesivo passa pela função que calcula e desenha
+ * sua animação de acordo com o tempo do áudio.
+ */
 function desenharAdesivos() {
+  const tempo = audio.currentTime || 0;
+
   elementosVisuais.forEach(item => {
-    if (!item.imagem.complete) return;
+    if (typeof window.desenharAdesivoAnimado === "function") {
+      window.desenharAdesivoAnimado(item, tempo);
+      return;
+    }
+
+    if (!item.imagem || !item.imagem.complete) return;
 
     const escala = item.escala / 100;
     const largura = item.largura * escala;
@@ -1526,27 +1361,13 @@ function desenharAdesivos() {
     ctx.save();
     ctx.translate(item.x, item.y);
     ctx.rotate(item.rotacao * Math.PI / 180);
-
-    ctx.drawImage(
-      item.imagem,
-      -largura / 2,
-      -altura / 2,
-      largura,
-      altura
-    );
+    ctx.drawImage(item.imagem, -largura / 2, -altura / 2, largura, altura);
 
     if (!exportando && item.id === imagemSelecionada) {
       ctx.strokeStyle = "#72f0b0";
       ctx.lineWidth = Math.max(1, canvas.width / 720);
       ctx.setLineDash([7, 5]);
-
-      ctx.strokeRect(
-        -largura / 2,
-        -altura / 2,
-        largura,
-        altura
-      );
-
+      ctx.strokeRect(-largura / 2, -altura / 2, largura, altura);
       ctx.setLineDash([]);
     }
 
@@ -1563,30 +1384,21 @@ function renderizar() {
 
   desenharVisualizador();
 
-  if (legenda) {
-    desenharLegenda(legenda, tempo);
-  }
+  if (legenda) desenharLegenda(legenda, tempo);
 
   desenharAdesivos();
 
   if (!exportando && !audio.src && !videoFundo.src && !legendas.length) {
     ctx.save();
-
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-
     ctx.font = `800 ${canvas.width * 0.065}px Arial`;
     ctx.fillText("LYRIC STUDIO", canvas.width / 2, canvas.height / 2 - 20);
 
     ctx.fillStyle = "#91a0b1";
     ctx.font = `${canvas.width * 0.023}px Arial`;
-    ctx.fillText(
-      "Importe uma música para começar",
-      canvas.width / 2,
-      canvas.height / 2 + 25
-    );
-
+    ctx.fillText("Importe uma música para começar", canvas.width / 2, canvas.height / 2 + 25);
     ctx.restore();
   }
 }
@@ -1595,10 +1407,7 @@ function renderizar() {
    CONTROLES DE APARÊNCIA
 ========================================================= */
 
-[
-  "formato",
-  "resolucao"
-].forEach(id => {
+["formato", "resolucao"].forEach(id => {
   $(id).addEventListener("change", definirFormato);
 });
 
@@ -1642,7 +1451,6 @@ function obterTipoGravacao() {
 
 function encerrarExportacao() {
   exportando = false;
-
   $("exportar").disabled = false;
   $("pararExportacao").disabled = true;
 
@@ -1656,9 +1464,7 @@ function encerrarExportacao() {
 
 $("exportar").addEventListener("click", async () => {
   if (!window.MediaRecorder || !canvas.captureStream) {
-    mensagem(
-      "Este navegador não oferece suporte à exportação de vídeo necessária."
-    );
+    mensagem("Este navegador não oferece suporte à exportação de vídeo necessária.");
     return;
   }
 
@@ -1691,19 +1497,13 @@ $("exportar").addEventListener("click", async () => {
   }
 
   const streamVideo = canvas.captureStream(30);
-  const faixasAudio = audioDestination
-    ? audioDestination.stream.getAudioTracks()
-    : [];
-
+  const faixasAudio = audioDestination ? audioDestination.stream.getAudioTracks() : [];
   faixasAudio.forEach(faixa => streamVideo.addTrack(faixa));
 
   partesVideo = [];
 
   const opcoes = {};
-
-  if (tipo) {
-    opcoes.mimeType = tipo;
-  }
+  if (tipo) opcoes.mimeType = tipo;
 
   if ($("qualidade").value === "high") {
     opcoes.videoBitsPerSecond = 8_000_000;
@@ -1722,9 +1522,7 @@ $("exportar").addEventListener("click", async () => {
   }
 
   mediaRecorder.ondataavailable = event => {
-    if (event.data && event.data.size > 0) {
-      partesVideo.push(event.data);
-    }
+    if (event.data && event.data.size > 0) partesVideo.push(event.data);
   };
 
   mediaRecorder.onerror = event => {
@@ -1735,9 +1533,7 @@ $("exportar").addEventListener("click", async () => {
 
   mediaRecorder.onstop = () => {
     const mimeType = mediaRecorder.mimeType || tipo || "video/webm";
-
     const extensao = mimeType.includes("mp4") ? "mp4" : "webm";
-
     const blob = new Blob(partesVideo, { type: mimeType });
     const url = URL.createObjectURL(blob);
 
@@ -1749,30 +1545,19 @@ $("exportar").addEventListener("click", async () => {
     link.click();
     link.remove();
 
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
     streamVideo.getTracks().forEach(track => track.stop());
 
-    if (audio.paused === false) {
-      audio.pause();
-    }
-
-    if (videoFundo.src) {
-      videoFundo.pause();
-    }
+    if (!audio.paused) audio.pause();
+    if (videoFundo.src) videoFundo.pause();
 
     encerrarExportacao();
-
-    mensagem(
-      `Exportação concluída. Arquivo gerado: ${extensao.toUpperCase()}.`
-    );
+    mensagem(`Exportação concluída. Arquivo gerado: ${extensao.toUpperCase()}.`);
   };
 
   exportando = true;
-
   $("exportar").disabled = true;
   $("pararExportacao").disabled = false;
-
   audio.currentTime = 0;
 
   if (videoFundo.src) {
@@ -1789,15 +1574,9 @@ $("exportar").addEventListener("click", async () => {
 
   try {
     await audio.play();
-
-    mensagem(
-      `Exportando vídeo em ${canvas.width} × ${canvas.height}. Não feche a página.`
-    );
+    mensagem(`Exportando vídeo em ${canvas.width} × ${canvas.height}. Não feche a página.`);
   } catch (erro) {
-    if (mediaRecorder.state === "recording") {
-      mediaRecorder.stop();
-    }
-
+    if (mediaRecorder.state === "recording") mediaRecorder.stop();
     mensagem("Não foi possível iniciar a reprodução do áudio para exportar.");
     return;
   }
@@ -1808,9 +1587,7 @@ $("exportar").addEventListener("click", async () => {
     renderizar();
 
     if (audio.ended || audio.currentTime >= obterDuracao()) {
-      if (mediaRecorder?.state === "recording") {
-        mediaRecorder.stop();
-      }
+      if (mediaRecorder?.state === "recording") mediaRecorder.stop();
       return;
     }
 
@@ -1858,7 +1635,6 @@ window.addEventListener("beforeunload", () => {
 
 /* ==========================================
    LYRIC STUDIO — GAVETAS E PRÉVIA EM POP-UP
-   Adicionar ao final do script.js existente
 ========================================== */
 
 (() => {
@@ -1874,13 +1650,10 @@ window.addEventListener("beforeunload", () => {
     const audio = $("audio");
 
     if (!sidebar || !topbar || !preview || !canvas) {
-      console.warn(
-        "Lyric Studio: não foi possível localizar todos os elementos da interface."
-      );
+      console.warn("Lyric Studio: não foi possível localizar todos os elementos da interface.");
       return;
     }
 
-    /* 1. Menu recolhível */
     let menuButton = $("menuDrawerToggle");
 
     if (!menuButton) {
@@ -1925,9 +1698,7 @@ window.addEventListener("beforeunload", () => {
         : !document.body.classList.contains("sidebar-fechada");
 
       menuButton.setAttribute("aria-expanded", String(aberto));
-      menuButton.innerHTML = mobile
-        ? '<span aria-hidden="true">☰</span><span>Menu</span>'
-        : '<span aria-hidden="true">☰</span><span>Menu</span>';
+      menuButton.innerHTML = '<span aria-hidden="true">☰</span><span>Menu</span>';
     }
 
     function fecharMenuMobile() {
@@ -1950,82 +1721,39 @@ window.addEventListener("beforeunload", () => {
     sidebar.addEventListener("click", event => {
       const link = event.target.closest("a, button");
 
-      if (
-        link &&
-        window.matchMedia("(max-width: 700px)").matches
-      ) {
+      if (link && window.matchMedia("(max-width: 700px)").matches) {
         fecharMenuMobile();
       }
     });
 
-    
-window.addEventListener("resize", () => {
-  if (!window.matchMedia("(max-width: 700px)").matches) {
-    fecharMenuMobile();
-  }
+    window.addEventListener("resize", () => {
+      if (!window.matchMedia("(max-width: 700px)").matches) {
+        fecharMenuMobile();
+      }
+      atualizarBotaoMenu();
+    });
 
-  atualizarBotaoMenu();
-});
+    if (window.matchMedia("(min-width: 701px)").matches) {
+      document.body.classList.add("sidebar-fechada");
+    } else {
+      document.body.classList.remove("sidebar-fechada");
+    }
 
-// Inicia com o menu recolhido no computador.
-if (window.matchMedia("(min-width: 701px)").matches) {
-  document.body.classList.add("sidebar-fechada");
-} else {
-  document.body.classList.remove("sidebar-fechada");
-}
-
-atualizarBotaoMenu();
-
-
-    /* 2. Transformar seções existentes em gavetas.
-       Os elementos originais são mantidos para preservar
-       os IDs e os eventos que o editor já utiliza. */
+    atualizarBotaoMenu();
 
     const gavetas = [
-      {
-        id: "sec-musica",
-        titulo: "Música e áudio",
-        icone: "♫",
-        aberta: true
-      },
-      {
-        id: "sec-letra",
-        titulo: "Letra",
-        icone: "≡",
-        aberta: true
-      },
-      {
-        id: "sec-legendas",
-        titulo: "Sincronização das legendas",
-        icone: "◷",
-        aberta: true
-      },
-      {
-        id: "sec-aparencia",
-        titulo: "Aparência e texto",
-        icone: "Aa",
-        aberta: false
-      },
-      {
-        id: "sec-recursos",
-        titulo: "Recursos visuais",
-        icone: "▧",
-        aberta: false
-      },
-      {
-        id: "sec-exportar",
-        titulo: "Exportar vídeo",
-        icone: "⇩",
-        aberta: false
-      }
+      { id: "sec-musica", titulo: "Música e áudio", icone: "♫", aberta: true },
+      { id: "sec-letra", titulo: "Letra", icone: "≡", aberta: true },
+      { id: "sec-legendas", titulo: "Sincronização das legendas", icone: "◷", aberta: true },
+      { id: "sec-aparencia", titulo: "Aparência e texto", icone: "Aa", aberta: false },
+      { id: "sec-recursos", titulo: "Recursos visuais", icone: "▧", aberta: false },
+      { id: "sec-exportar", titulo: "Exportar vídeo", icone: "⇩", aberta: false }
     ];
 
     gavetas.forEach(config => {
       const secao = $(config.id);
 
-      if (!secao || secao.dataset.drawerReady === "true") {
-        return;
-      }
+      if (!secao || secao.dataset.drawerReady === "true") return;
 
       const filhos = Array.from(secao.childNodes);
       const cabecalho = document.createElement("button");
@@ -2056,15 +1784,10 @@ atualizarBotaoMenu();
 
       cabecalho.addEventListener("click", () => {
         const abrir = corpo.hidden;
-
         corpo.hidden = !abrir;
         cabecalho.setAttribute("aria-expanded", String(abrir));
       });
     });
-
-    /* 3. Criar o pop-up e mover a prévia real.
-       Não cria um segundo canvas: isso evita dessincronizar
-       a imagem que o script original desenha. */
 
     let modal = $("previewModal");
 
@@ -2079,12 +1802,9 @@ atualizarBotaoMenu();
         <div class="preview-modal-card">
           <div class="preview-modal-header">
             <h2 id="previewModalTitulo">Prévia do vídeo</h2>
-            <button id="fecharPreviewModal" type="button"
-              aria-label="Fechar prévia">×</button>
+            <button id="fecharPreviewModal" type="button" aria-label="Fechar prévia">×</button>
           </div>
-
           <div id="previewModalContent"></div>
-
           <div class="preview-modal-controls">
             <button id="previewModalPlay" type="button">▶ Reproduzir áudio</button>
             <span id="previewModalTempo">00:00 / 00:00</span>
@@ -2102,7 +1822,6 @@ atualizarBotaoMenu();
       abrirPreviewButton.id = "abrirPreviewModal";
       abrirPreviewButton.type = "button";
       abrirPreviewButton.textContent = "⛶ Abrir prévia em tela ampliada";
-
       preview.appendChild(abrirPreviewButton);
     }
 
@@ -2117,36 +1836,24 @@ atualizarBotaoMenu();
     let modalAberto = false;
     let focoAnterior = null;
 
-    function formatarTempo(segundos) {
-      if (!Number.isFinite(segundos) || segundos < 0) {
-        segundos = 0;
-      }
+    function formatarTempoModal(segundos) {
+      if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
 
-      const minutos = Math.floor(segundos / 60);
-      const segundosRestantes = Math.floor(segundos % 60);
-
-      return (
-        String(minutos).padStart(2, "0") +
-        ":" +
-        String(segundosRestantes).padStart(2, "0")
-      );
+      return String(Math.floor(segundos / 60)).padStart(2, "0") + ":" +
+        String(Math.floor(segundos % 60)).padStart(2, "0");
     }
 
     function atualizarTempoModal() {
       if (!audio || !tempoModal) return;
 
       tempoModal.textContent =
-        formatarTempo(audio.currentTime) +
-        " / " +
-        formatarTempo(audio.duration);
+        formatarTempoModal(audio.currentTime) + " / " +
+        formatarTempoModal(audio.duration);
     }
 
     function atualizarBotaoAudio() {
       if (!tocarModalButton || !audio) return;
-
-      tocarModalButton.textContent = audio.paused
-        ? "▶ Reproduzir áudio"
-        : "Ⅱ Pausar áudio";
+      tocarModalButton.textContent = audio.paused ? "▶ Reproduzir áudio" : "Ⅱ Pausar áudio";
     }
 
     function abrirModal() {
@@ -2154,7 +1861,6 @@ atualizarBotaoMenu();
 
       focoAnterior = document.activeElement;
       modalAberto = true;
-
       conteudoModal.appendChild(preview);
       modal.classList.add("aberto");
       document.body.style.overflow = "hidden";
@@ -2188,29 +1894,21 @@ atualizarBotaoMenu();
     fecharModalButton.addEventListener("click", fecharModal);
 
     modal.addEventListener("click", event => {
-      if (event.target === modal) {
-        fecharModal();
-      }
+      if (event.target === modal) fecharModal();
     });
 
     document.addEventListener("keydown", event => {
       if (event.key === "Escape") {
-        if (modalAberto) {
-          fecharModal();
-        } else if (menuEstaAberto()) {
-          fecharMenuMobile();
-        }
+        if (modalAberto) fecharModal();
+        else if (menuEstaAberto()) fecharMenuMobile();
       }
     });
 
     if (audio) {
       tocarModalButton.addEventListener("click", async () => {
         try {
-          if (audio.paused) {
-            await audio.play();
-          } else {
-            audio.pause();
-          }
+          if (audio.paused) await audio.play();
+          else audio.pause();
         } catch (erro) {
           console.error("Não foi possível reproduzir o áudio:", erro);
         }
@@ -2218,8 +1916,8 @@ atualizarBotaoMenu();
         atualizarBotaoAudio();
       });
 
-      ["timeupdate", "durationchange", "loadedmetadata", "seeked"].forEach(
-        evento => audio.addEventListener(evento, atualizarTempoModal)
+      ["timeupdate", "durationchange", "loadedmetadata", "seeked"].forEach(evento =>
+        audio.addEventListener(evento, atualizarTempoModal)
       );
 
       audio.addEventListener("play", atualizarBotaoAudio);
@@ -2227,16 +1925,11 @@ atualizarBotaoMenu();
       audio.addEventListener("ended", atualizarBotaoAudio);
     }
 
-    /* O preview continua usando o canvas original.
-       Ao fechar o pop-up, ele retorna ao lugar de origem. */
-
     console.info("Lyric Studio: gavetas e pop-up inicializados.");
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", iniciarNovaInterface, {
-      once: true
-    });
+    document.addEventListener("DOMContentLoaded", iniciarNovaInterface, { once: true });
   } else {
     iniciarNovaInterface();
   }
@@ -2261,9 +1954,7 @@ atualizarBotaoMenu();
   ];
 
   function adesivoAtual() {
-    return elementosVisuais.find(
-      item => item.id === imagemSelecionada
-    ) || null;
+    return elementosVisuais.find(item => item.id === imagemSelecionada) || null;
   }
 
   function informarAnimacao(texto) {
@@ -2272,7 +1963,10 @@ atualizarBotaoMenu();
   }
 
   function carregarControlesAnimacao(item) {
-    if (!item) return;
+    if (!item) {
+      informarAnimacao("Selecione um adesivo para configurar suas animações.");
+      return;
+    }
 
     const anim = item.animacao || {};
 
@@ -2282,7 +1976,16 @@ atualizarBotaoMenu();
     $("animacaoInicio").value = anim.inicio ?? 0;
     $("animacaoFim").value = anim.fim ?? 0;
     $("animacaoVelocidade").value = anim.velocidade ?? 1;
+
+    informarAnimacao(
+      anim.entrada !== "none" || anim.loop !== "none" || anim.saida !== "none"
+        ? "Animações carregadas para: " + item.nome
+        : "Nenhuma animação configurada para: " + item.nome
+    );
   }
+
+  // Permite que os outros trechos do script atualizem os controles.
+  window.carregarControlesAnimacaoAdesivo = carregarControlesAnimacao;
 
   function aplicarAnimacao() {
     const item = adesivoAtual();
@@ -2292,20 +1995,11 @@ atualizarBotaoMenu();
       return;
     }
 
-    const inicio = Math.max(
-      0,
-      Number($("animacaoInicio").value) || 0
-    );
-
-    const fim = Math.max(
-      0,
-      Number($("animacaoFim").value) || 0
-    );
+    const inicio = Math.max(0, Number($("animacaoInicio").value) || 0);
+    const fim = Math.max(0, Number($("animacaoFim").value) || 0);
 
     if (fim > 0 && fim <= inicio) {
-      informarAnimacao(
-        "O tempo final precisa ser maior que o inicial."
-      );
+      informarAnimacao("O tempo final precisa ser maior que o inicial.");
       return;
     }
 
@@ -2315,10 +2009,7 @@ atualizarBotaoMenu();
       saida: $("animacaoSaida").value,
       inicio,
       fim,
-      velocidade: Math.max(
-        0.1,
-        Number($("animacaoVelocidade").value) || 1
-      )
+      velocidade: Math.max(0.1, Number($("animacaoVelocidade").value) || 1)
     };
 
     informarAnimacao("Animações aplicadas ao adesivo selecionado.");
@@ -2333,7 +2024,15 @@ atualizarBotaoMenu();
       return;
     }
 
-    delete item.animacao;
+    item.animacao = {
+      entrada: "none",
+      loop: "none",
+      saida: "none",
+      inicio: 0,
+      fim: 0,
+      velocidade: 1
+    };
+
     carregarControlesAnimacao(item);
     informarAnimacao("As animações deste adesivo foram removidas.");
     renderizar();
@@ -2348,9 +2047,7 @@ atualizarBotaoMenu();
     const duracaoAudio = Number(audio.duration);
     const fim = fimConfigurado > 0
       ? fimConfigurado
-      : (Number.isFinite(duracaoAudio) && duracaoAudio > 0
-          ? duracaoAudio
-          : Infinity);
+      : (Number.isFinite(duracaoAudio) && duracaoAudio > 0 ? duracaoAudio : Infinity);
 
     if (tempo < inicio || tempo >= fim) {
       return { alpha: 0, escala: 1, dx: 0, dy: 0, rotacao: 0 };
@@ -2379,8 +2076,7 @@ atualizarBotaoMenu();
       } else if (entrada === "zoom") {
         escala *= 0.2 + 0.8 * p;
       } else if (entrada === "bounce") {
-        escala *= 0.65 + 0.35 * p
-          + Math.sin(p * Math.PI) * 0.25;
+        escala *= 0.65 + 0.35 * p + Math.sin(p * Math.PI) * 0.25;
         dy -= Math.sin(p * Math.PI) * 35;
       } else if (entrada === "slide") {
         dy += (1 - p) * 100;
@@ -2400,7 +2096,7 @@ atualizarBotaoMenu();
         escala *= p;
         alpha *= p;
       } else if (saida === "zoomOut") {
-        escala *= 0.5 + (1 - p) * 1.5;
+        escala *= 1 + (1 - p) * 1.5;
         alpha *= p;
       }
     }
@@ -2423,15 +2119,10 @@ atualizarBotaoMenu();
     return { alpha, escala, dx, dy, rotacao };
   }
 
-  /*
-   * Esta função é usada pela função existente desenharAdesivos().
-   * Ela desenha a imagem com a transformação calculada pelo tempo do áudio.
-   */
   window.desenharAdesivoAnimado = function (item, tempo) {
     if (!item.imagem || !item.imagem.complete) return;
 
     const animacao = obterTransformacaoAnimada(item, tempo);
-
     if (animacao.alpha <= 0) return;
 
     const escalaBase = (Number(item.escala) || 100) / 100;
@@ -2441,29 +2132,18 @@ atualizarBotaoMenu();
     ctx.save();
     ctx.globalAlpha *= animacao.alpha;
     ctx.translate(item.x + animacao.dx, item.y + animacao.dy);
+
     ctx.rotate(
-      (Number(item.rotacao) || 0) * Math.PI / 180
-      + animacao.rotacao
+      (Number(item.rotacao) || 0) * Math.PI / 180 + animacao.rotacao
     );
 
-    ctx.drawImage(
-      item.imagem,
-      -largura / 2,
-      -altura / 2,
-      largura,
-      altura
-    );
+    ctx.drawImage(item.imagem, -largura / 2, -altura / 2, largura, altura);
 
     if (!exportando && item.id === imagemSelecionada) {
       ctx.strokeStyle = "#72f0b0";
       ctx.lineWidth = Math.max(1, canvas.width / 720);
       ctx.setLineDash([7, 5]);
-      ctx.strokeRect(
-        -largura / 2,
-        -altura / 2,
-        largura,
-        altura
-      );
+      ctx.strokeRect(-largura / 2, -altura / 2, largura, altura);
       ctx.setLineDash([]);
     }
 
@@ -2471,29 +2151,19 @@ atualizarBotaoMenu();
   };
 
   function configurarControlesAnimacao() {
-    $("aplicarAnimacao")?.addEventListener(
-      "click",
-      aplicarAnimacao
-    );
-
-    $("limparAnimacao")?.addEventListener(
-      "click",
-      limparAnimacao
-    );
+    $("aplicarAnimacao")?.addEventListener("click", aplicarAnimacao);
+    $("limparAnimacao")?.addEventListener("click", limparAnimacao);
 
     camposAnimacao.forEach(id => {
       $(id)?.addEventListener("change", () => {
         const item = adesivoAtual();
-        if (item) informarAnimacao(
-          "Configurações alteradas. Clique em Aplicar animação."
-        );
+
+        if (item) {
+          informarAnimacao("Configurações alteradas. Clique em Aplicar animação.");
+        }
       });
     });
 
-    /*
-     * O evento change existente de arquivoImagem continua responsável
-     * por adicionar a imagem. Este listener apenas atualiza os controles.
-     */
     $("arquivoImagem")?.addEventListener("change", () => {
       setTimeout(() => {
         const item = adesivoAtual();
@@ -2509,6 +2179,7 @@ atualizarBotaoMenu();
     $("excluirImagem")?.addEventListener("click", () => {
       setTimeout(() => {
         const item = adesivoAtual();
+
         if (item) carregarControlesAnimacao(item);
         else informarAnimacao("Selecione um adesivo para animá-lo.");
       }, 50);
@@ -2516,12 +2187,8 @@ atualizarBotaoMenu();
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener(
-      "DOMContentLoaded",
-      configurarControlesAnimacao
-    );
+    document.addEventListener("DOMContentLoaded", configurarControlesAnimacao, { once: true });
   } else {
     configurarControlesAnimacao();
   }
 })();
-
