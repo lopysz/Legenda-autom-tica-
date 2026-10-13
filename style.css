@@ -1852,3 +1852,194 @@ progress {
   .timeline-handle { width: 12px; height: 18px; }
   .timeline-controls .time-label { font-size: 12px; min-width: 52px; }
 }
+/* =========================================================
+   POPUPS FLOUTANTES / VISUAL CAPCUT
+   (Cole no final do style.css)
+========================================================= */
+
+body {
+  overflow: hidden;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr auto;
+  gap: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: calc(100vh - 62px);
+}
+
+.editor-panel {
+  display: none !important;
+}
+
+.preview-panel {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 18px 10px;
+  background: linear-gradient(180deg, #101820, #0b1017);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.canvas-wrap {
+  flex: 1 1 auto;
+  min-height: 360px;
+  max-height: calc(100vh - 320px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #070b10;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+#canvas {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.preview-footer {
+  margin-top: 12px;
+}
+
+.preview-help {
+  margin-top: 8px;
+}
+
+.floating-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 10, 0.62);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 1500;
+}
+
+.floating-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.floating-host {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1600;
+}
+
+.floating-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  width: min(760px, 92vw);
+  max-height: 82vh;
+  background: rgba(17, 25, 35, 0.98);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.56);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.22s ease, opacity 0.22s ease;
+  overflow: hidden;
+}
+
+.floating-panel.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.floating-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #121d28;
+  border-bottom: 1px solid var(--border);
+}
+
+.floating-panel-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.floating-panel-close {
+  min-width: 38px;
+  min-height: 38px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.floating-panel-body {
+  max-height: calc(82vh - 58px);
+  overflow: auto;
+  padding: 14px;
+}
+
+.floating-panel-body > .panel-section {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.floating-panel-body > .panel-section > .section-title {
+  display: none;
+}
+
+.floating-panel-body > .panel-section > *:not(.section-title) {
+  display: block;
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    min-height: 56px;
+    padding: 9px 12px;
+  }
+
+  .preview-panel {
+    padding: 10px 10px 8px;
+  }
+
+  .canvas-wrap {
+    min-height: 260px;
+    max-height: calc(100vh - 250px);
+  }
+
+  .floating-panel {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    top: auto;
+    width: min(94vw, 700px);
+    max-height: 80vh;
+    transform: translate(-50%, 15px) scale(0.97);
+    border-radius: 18px 18px 12px 12px;
+  }
+
+  .floating-panel.open {
+    transform: translate(-50%, 0) scale(1);
+  }
+}
