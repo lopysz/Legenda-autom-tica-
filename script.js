@@ -313,22 +313,22 @@ $("criarLinhas").addEventListener("click", () => {
     return;
   }
 
-  const linhas = texto.split(/\r?\n/).map(linha => linha.trim()).filter(Boolean);
+  const linhas = texto
+    .split(/\r?\n/)
+    .map(linha => linha.trim())
+    .filter(Boolean);
 
   if (!linhas.length) {
     mensagem("Não foram encontradas linhas na letra.");
     return;
   }
 
-  const duracao = obterDuracao();
-  const intervalo = duracao > 0 ? duracao / linhas.length : 3;
+  legendas = criarLegendasDoTexto(texto);
 
-  legendas = linhas.map((textoLinha, indice) => ({
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + indice),
-    texto: textoLinha,
-    inicio: indice * intervalo,
-    fim: (indice + 1) * intervalo
-  }));
+  if (!legendas.length) {
+    mensagem("Não foi possível criar legendas a partir do texto informado.");
+    return;
+  }
 
   indiceSelecionado = 0;
   atualizarSeletorLegendas();
@@ -336,12 +336,9 @@ $("criarLinhas").addEventListener("click", () => {
   renderizar();
 
   mensagem(
-    duracao > 0
-      ? "Legendas criadas. Ajuste o tempo de cada linha."
-      : "Legendas criadas. Importe o áudio para sincronizar os tempos."
+    "Legendas criadas com sincronização por tempo."
   );
 });
-
 function atualizarSeletorLegendas() {
   const seletor = $("linhaSelecionada");
   seletor.innerHTML = "";
