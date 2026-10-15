@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0b1017">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#0b1017"/>
   <title>Lyric Studio</title>
   <link rel="stylesheet" href="./style.css">
 </head>
@@ -17,14 +17,19 @@
       </span>
     </a>
 
-    <div class="topbar-status">
-      <span class="status-dot"></span>
-      Editor local
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="topbar-status">
+        <span class="status-dot"></span>
+        Editor local
+      </div>
+      <!-- Botão Timeline (abre overlay) -->
+      <button id="btnOpenTimeline" class="btn" title="Abrir Timeline" style="min-height:36px; padding:6px 10px;">
+        Timeline
+      </button>
     </div>
   </header>
 
   <main class="app-shell" id="inicio">
-
 
     <section class="editor-panel">
 
@@ -50,7 +55,6 @@
         <details class="subdrawer">
           <summary>Importar áudio</summary>
           <div class="subdrawer-content">
-
             <label class="file-drop" for="arquivoAudio">
               <span class="file-icon">♫</span>
               <strong>Importar áudio</strong>
@@ -59,16 +63,13 @@
             </label>
 
             <input type="file" id="arquivoAudio" accept="audio/*">
-
             <p id="nomeAudio" class="file-name">Nenhum áudio selecionado</p>
-
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Controles de reprodução</summary>
           <div class="subdrawer-content">
-
             <audio id="audio" preload="metadata"></audio>
 
             <div class="player">
@@ -105,23 +106,14 @@
         <details class="subdrawer">
           <summary>Adicionar letra da música</summary>
           <div class="subdrawer-content">
-
             <label for="letra">Cole a letra da música</label>
-
-            <textarea
-              id="letra"
-              rows="8"
-              placeholder="Cole aqui a letra, colocando cada verso em uma linha..."
-            ></textarea>
+            <textarea id="letra" rows="8" placeholder="Cole aqui a letra, colocando cada verso em uma linha..."></textarea>
 
             <p class="help-text">
               Cada linha será criada como uma legenda que você poderá sincronizar individualmente.
             </p>
 
-            <button type="button" id="criarLinhas" class="primary-button">
-              Criar legendas
-            </button>
-
+            <button type="button" id="criarLinhas" class="primary-button">Criar legendas</button>
           </div>
         </details>
       </section>
@@ -135,14 +127,12 @@
             <span class="section-number">03</span>
             <h2>Sincronização</h2>
           </div>
-
           <span id="contadorLegendas" class="counter">0 legendas</span>
         </div>
 
         <details class="subdrawer">
           <summary>Sincronizar início e fim</summary>
           <div class="subdrawer-content">
-
             <div class="sync-toolbar">
               <div class="field">
                 <label for="linhaSelecionada">Legenda selecionada</label>
@@ -151,26 +141,19 @@
                 </select>
               </div>
 
-              <button type="button" id="marcarInicio" class="secondary-button">
-                Marcar início
-              </button>
-
-              <button type="button" id="marcarTempo" class="secondary-button">
-                Marcar fim
-              </button>
+              <button type="button" id="marcarInicio" class="secondary-button">Marcar início</button>
+              <button type="button" id="marcarTempo" class="secondary-button">Marcar fim</button>
             </div>
 
             <p class="help-text">
               Selecione uma legenda, reproduza a música e use os botões para marcar o início e o fim no tempo atual.
             </p>
-
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Lista de legendas e tempos</summary>
           <div class="subdrawer-content">
-
             <div class="caption-list-heading">
               <span>INÍCIO / FIM</span>
               <span>TEXTO DA LEGENDA</span>
@@ -179,7 +162,6 @@
             <div id="listaLegendas" class="caption-list">
               <div class="empty-state">Suas legendas aparecerão aqui.</div>
             </div>
-
           </div>
         </details>
       </section>
@@ -198,9 +180,7 @@
         <details class="subdrawer">
           <summary>Formato e posição do texto</summary>
           <div class="subdrawer-content">
-
             <div class="form-grid">
-
               <div class="field">
                 <label for="formato">Formato do vídeo</label>
                 <select id="formato">
@@ -226,18 +206,14 @@
                 </div>
                 <input type="range" id="tamanhoTexto" min="20" max="100" value="48">
               </div>
-
             </div>
-
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Cores e fontes</summary>
           <div class="subdrawer-content">
-
             <div class="form-grid">
-
               <div class="field">
                 <label for="corFundo">Cor de fundo</label>
                 <input type="color" id="corFundo" value="#101522">
@@ -268,27 +244,17 @@
 
               <div class="field full-width">
                 <label for="arquivoFonte">Importar fonte (.TTF, .OTF, .WOFF, .WOFF2)</label>
-                <input
-                  type="file"
-                  id="arquivoFonte"
-                  accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
-                >
-                <small id="nomeFonte" class="help-text">
-                  Nenhuma fonte personalizada carregada.
-                </small>
+                <input type="file" id="arquivoFonte" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2">
+                <small id="nomeFonte" class="help-text">Nenhuma fonte personalizada carregada.</small>
               </div>
-
             </div>
-
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Animações e efeitos do texto</summary>
           <div class="subdrawer-content">
-
             <div class="form-grid">
-
               <div class="field">
                 <label for="animacaoTexto">Animação da legenda</label>
                 <select id="animacaoTexto">
@@ -328,9 +294,7 @@
                   <span>Mostrar visualizador de áudio</span>
                 </label>
               </div>
-
             </div>
-
           </div>
         </details>
       </section>
@@ -349,74 +313,39 @@
         <details class="subdrawer">
           <summary>Vídeo de fundo</summary>
           <div class="subdrawer-content">
+            <p class="help-text">Importe um vídeo para usar como fundo. MOV, MP4 e WEBM dependem do codec e do suporte do navegador.</p>
 
-            <p class="help-text">
-              Importe um vídeo para usar como fundo. MOV, MP4 e WEBM dependem do codec e do suporte do navegador.
-            </p>
-
-            <label class="file-button" for="arquivoVideo">
-              Importar vídeo de fundo
-            </label>
-
-            <input
-              type="file"
-              id="arquivoVideo"
-              accept="video/mp4,video/webm,video/quicktime,.mov,.mp4,.webm"
-            >
-
+            <label class="file-button" for="arquivoVideo">Importar vídeo de fundo</label>
+            <input type="file" id="arquivoVideo" accept="video/mp4,video/webm,video/quicktime,.mov,.mp4,.webm">
             <p id="nomeVideo" class="file-name">Nenhum vídeo de fundo selecionado</p>
 
             <div class="button-row">
-              <button type="button" id="reproduzirFundo" class="secondary-button">
-                Reproduzir fundo
-              </button>
-
-              <button type="button" id="removerVideo" class="secondary-button">
-                Remover fundo
-              </button>
+              <button type="button" id="reproduzirFundo" class="secondary-button">Reproduzir fundo</button>
+              <button type="button" id="removerVideo" class="secondary-button">Remover fundo</button>
             </div>
-
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Correção de cor — LUT</summary>
           <div class="subdrawer-content">
-
-            <p class="help-text">
-              Importe um arquivo .CUBE. A LUT será aplicada ao vídeo de fundo quando o formato for válido.
-            </p>
+            <p class="help-text">Importe um arquivo .CUBE. A LUT será aplicada ao vídeo de fundo quando o formato for válido.</p>
 
             <label class="file-button" for="arquivoLUT">Importar LUT (.CUBE)</label>
             <input type="file" id="arquivoLUT" accept=".cube,text/plain">
-
             <p id="nomeLUT" class="file-name">Nenhuma LUT selecionada</p>
-
-            <button type="button" id="removerLUT" class="secondary-button">
-              Remover LUT
-            </button>
-
+            <button type="button" id="removerLUT" class="secondary-button">Remover LUT</button>
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Adicionar e ajustar adesivos</summary>
           <div class="subdrawer-content">
-
-            <label class="file-button" for="arquivoImagem">
-              Adicionar imagem ou adesivo
-            </label>
-
-            <input
-              type="file"
-              id="arquivoImagem"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-            >
-
+            <label class="file-button" for="arquivoImagem">Adicionar imagem ou adesivo</label>
+            <input type="file" id="arquivoImagem" accept="image/png,image/jpeg,image/webp,image/gif">
             <p id="nomeImagem" class="file-name">Nenhuma imagem selecionada</p>
 
             <div class="form-grid">
-
               <div class="field">
                 <div class="range-heading">
                   <label for="tamanhoImagem">Tamanho</label>
@@ -432,35 +361,23 @@
                 </div>
                 <input type="range" id="rotacaoImagem" min="-180" max="180" value="0">
               </div>
-
             </div>
 
             <div class="button-row">
-              <button type="button" id="centralizarImagem" class="secondary-button">
-                Centralizar
-              </button>
-
-              <button type="button" id="excluirImagem" class="danger-button">
-                Excluir adesivo
-              </button>
+              <button type="button" id="centralizarImagem" class="secondary-button">Centralizar</button>
+              <button type="button" id="excluirImagem" class="danger-button">Excluir adesivo</button>
             </div>
 
-            <p id="estadoImagem" class="help-text">
-              Você pode arrastar a imagem diretamente na prévia.
-            </p>
-
+            <p id="estadoImagem" class="help-text">Você pode arrastar a imagem diretamente na prévia.</p>
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Animações dos adesivos</summary>
           <div class="subdrawer-content">
-
             <div class="animation-editor">
               <h3>Animação do adesivo selecionado</h3>
-
               <div class="animation-grid">
-
                 <div class="field">
                   <label for="animacaoEntrada">Animação de entrada</label>
                   <select id="animacaoEntrada">
@@ -515,72 +432,16 @@
                     <option value="2">Muito rápida</option>
                   </select>
                 </div>
-
               </div>
 
               <div class="button-row">
-                <button type="button" id="aplicarAnimacao" class="primary">
-                  Aplicar animação
-                </button>
-
-                <button type="button" id="limparAnimacao">
-                  Remover animações
-                </button>
+                <button type="button" id="aplicarAnimacao" class="primary">Aplicar animação</button>
+                <button type="button" id="limparAnimacao">Remover animações</button>
               </div>
 
-              <p id="estadoAnimacao" class="help-text" aria-live="polite">
-                Selecione um adesivo para configurar suas animações.
-              </p>
+              <p id="estadoAnimacao" class="help-text" aria-live="polite">Se
+              lecione um adesivo para configurar suas animações.</p>
             </div>
-
-          </div>
-        </details>
-
-        <details class="subdrawer">
-          <summary>Importar animação externa</summary>
-          <div class="subdrawer-content">
-
-            <div class="animation-import">
-              <h3>Importar animação externa</h3>
-
-              <label for="arquivoAnimacao">Arquivo Lottie ou Rive</label>
-
-              <input
-                type="file"
-                id="arquivoAnimacao"
-                accept=".json,.lottie,.riv,application/json"
-              >
-
-              <p class="help-text">
-                JSON deve ser uma animação Lottie. Os formatos Lottie e Rive precisam dos respectivos mecanismos de reprodução.
-              </p>
-            </div>
-
-          </div>
-        </details>
-
-        <details class="subdrawer">
-          <summary>Formatos de projeto externo</summary>
-          <div class="subdrawer-content">
-
-            <p class="help-text">
-              Projetos de Premiere, After Effects, DaVinci Resolve e outros editores não são abertos diretamente por este editor. Exporte o projeto como vídeo e importe-o como fundo.
-            </p>
-
-            <label class="file-button" for="arquivoProjeto">
-              Selecionar arquivo de projeto
-            </label>
-
-            <input
-              type="file"
-              id="arquivoProjeto"
-              accept=".mogrt,.aep,.drp,.setting,.moef,.motn"
-            >
-
-            <p id="estadoProjeto" class="file-name">
-              Nenhum arquivo de projeto selecionado
-            </p>
-
           </div>
         </details>
       </section>
@@ -599,13 +460,9 @@
         <details class="subdrawer">
           <summary>Configurações de exportação</summary>
           <div class="subdrawer-content">
-
-            <p class="help-text">
-              A exportação registra a prévia do canvas e o áudio da música. O formato disponível depende do navegador.
-            </p>
+            <p class="help-text">A exportação registra a prévia do canvas e o áudio da música. O formato disponível depende do navegador.</p>
 
             <div class="export-options">
-
               <div class="field">
                 <label for="resolucao">Resolução</label>
                 <select id="resolucao">
@@ -621,30 +478,19 @@
                   <option value="high" selected>Alta</option>
                 </select>
               </div>
-
             </div>
-
           </div>
         </details>
 
         <details class="subdrawer">
           <summary>Iniciar ou interromper exportação</summary>
           <div class="subdrawer-content">
-
             <div class="button-row export-buttons">
-              <button type="button" id="exportar" class="primary-button">
-                Exportar vídeo
-              </button>
-
-              <button type="button" id="pararExportacao" class="danger-button" disabled>
-                Parar
-              </button>
+              <button type="button" id="exportar" class="primary-button">Exportar vídeo</button>
+              <button type="button" id="pararExportacao" class="danger-button" disabled>Parar</button>
             </div>
 
-            <p id="mensagem" class="status-message" role="status">
-              Pronto para editar.
-            </p>
-
+            <p id="mensagem" class="status-message" role="status">Pronto para editar.</p>
           </div>
         </details>
       </section>
@@ -692,16 +538,79 @@
         <span id="tempoPreview">00:00</span>
       </div>
 
-      <p class="preview-help">
-        A prévia acompanha a música e as alterações visuais.
-      </p>
+      <p class="preview-help">A prévia acompanha a música e as alterações visuais.</p>
     </aside>
 
   </main>
 
+  <!-- Timeline overlay (hidden until opened) -->
+  <div id="timelineOverlay" class="timeline-overlay" aria-hidden="true">
+    <div class="timeline-panel">
+      <button id="closeTimeline" class="btn floating-close" title="Fechar">✕</button>
+
+      <div class="timeline-layout">
+        <aside class="timeline-pool">
+          <h3>Linhas detectadas</h3>
+          <div id="timelinePool" class="pool-list"></div>
+        </aside>
+
+        <main class="timeline-main">
+          <div class="timeline-preview-wrap">
+            <!-- Preview: o canvas abaixo já serve; aqui deixamos um fallback visual -->
+            <div id="timelinePreview" class="timeline-preview">Preview</div>
+          </div>
+
+          <div id="timelineDropArea" class="timeline-droparea" aria-label="Área da linha do tempo"></div>
+        </main>
+      </div>
+
+      <div class="timeline-footer">
+        <button id="saveTimeline" class="primary-button">Salvar</button>
+        <button id="cancelTimeline" class="secondary-button">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating backdrop/host para popups -->
+  <div id="floatingBackdrop" class="floating-backdrop" aria-hidden="true"></div>
+  <div id="floatingHost" class="floating-host" aria-live="polite"></div>
+
   <video id="videoFundo" muted loop playsinline></video>
 
   <script src="./script.js"></script>
+  <!-- popup.js (coloque o arquivo popup.js no mesmo diretório) -->
+  <script src="./popup.js"></script>
+
+  <!-- Conexão do botão Timeline ao openTimeline (se você colar o JS do timeline no script principal ele vai usar openTimeline) -->
+  <script>
+    // Conecta botão da topbar ao abrir a timeline.
+    document.getElementById('btnOpenTimeline')?.addEventListener('click', () => {
+      // Se você tiver uma função window.openTimeline(lines, times) definida no seu script,
+      // a chamamos aqui. Caso não exista ainda, abrimos o overlay vazio.
+      if (typeof window.openTimeline === 'function') {
+        // gerar linhas a partir do textarea 'letra' (split simples)
+        const texto = (document.getElementById('letra')?.value || '').trim();
+        const lines = texto ? texto.split('\n').map((t, i) => ({ id: 'l' + i, text: t.trim() })) : [];
+        window.openTimeline(lines, []); // estimatedTimes pode ser retornado pelo auto-align
+      } else {
+        // fallback: apenas abre overlay (timelineOverlay)
+        const overlay = document.getElementById('timelineOverlay');
+        if (overlay) {
+          overlay.classList.add('open');
+          overlay.setAttribute('aria-hidden', 'false');
+        }
+      }
+    });
+
+    // fecha overlay se não houver JS de timeline
+    document.getElementById('closeTimeline')?.addEventListener('click', () => {
+      const overlay = document.getElementById('timelineOverlay');
+      if (overlay) {
+        overlay.classList.remove('open');
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+    });
+  </script>
 
 </body>
 </html>
