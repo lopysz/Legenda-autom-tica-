@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10263d">
+  <title>Inventário de EPIs | Gerador de Relatórios</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js" defer></script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark">✓</div>
+    <div>
+      <h1>Inventário de EPIs</h1>
+      <p>Gerador de relatórios de almoxarifado</p>
+    </div>
+    <span class="status">PRONTO PARA USAR</span>
+  </header>
+
+  <main class="layout">
+    <section class="panel editor">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">ENTRADA DE DADOS</p>
+          <h2>Monte seu relatório</h2>
+        </div>
+        <span class="step">01</span>
+      </div>
+
+      <div class="field-grid">
+        <label>Título do relatório
+          <input id="titulo" type="text" value="RELATÓRIO DE INVENTÁRIO DE EPIs" maxlength="120">
+        </label>
+        <label>Data da contagem
+          <input id="dataContagem" type="date">
+        </label>
+        <label class="full">Setor / local
+          <input id="setor" type="text" placeholder="Ex.: Almoxarifado Operacional">
+        </label>
+      </div>
+
+      <div class="section-heading subheading">
+        <div>
+          <h3>Cole os dados do inventário</h3>
+          <p>Use um item por bloco. Os campos são flexíveis.</p>
+        </div>
+      </div>
+
+      <label class="textarea-label" for="dados">Texto do inventário</label>
+      <textarea id="dados" spellcheck="false" placeholder="Setor: Almoxarifado Operacional
+
+Item: Sapato E.V.A.
+Tamanhos: 33=13, 34=0, 35=3, 36=72, 37=37
+Quantidade: 139
+
+Item: Capacete de segurança
+Quantidade: 45
+
+Item: Luva de proteção
+Descrição: Luva de proteção mecânica
+Quantidade: 120"></textarea>
+      <div class="hint"><span class="hint-icon">i</span> Você pode usar “Item:”, “Quantidade:”, “Descrição:” e “Tamanhos:”. Para grades, escreva tamanho=quantidade separados por vírgulas. Confira sempre a interpretação antes de exportar.</div>
+
+      <div class="button-row">
+        <button id="exemploBtn" class="button secondary" type="button">Carregar exemplo</button>
+        <button id="limparBtn" class="button ghost" type="button">Limpar</button>
+        <button id="interpretarBtn" class="button primary" type="button">Interpretar dados</button>
+      </div>
+
+      <div id="mensagem" class="message" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="panel preview-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">CONFERÊNCIA</p>
+          <h2>Pré-visualização</h2>
+        </div>
+        <span class="step">02</span>
+      </div>
+      <p class="muted">Confira os dados reconhecidos e os totais antes de gerar o arquivo.</p>
+
+      <div id="resumo" class="summary-grid">
+        <div class="summary-card"><span>Itens identificados</span><strong id="totalItens">0</strong></div>
+        <div class="summary-card"><span>Total de unidades</span><strong id="totalUnidades">0</strong></div>
+      </div>
+
+      <div class="preview-document" id="previewDocumento">
+        <div class="document-top">
+          <div class="document-symbol">EPI</div>
+          <div>
+            <p class="document-kicker">ALMOXARIFADO OPERACIONAL</p>
+            <h3 id="previewTitulo">RELATÓRIO DE INVENTÁRIO DE EPIs</h3>
+            <p class="document-subtitle">Controle interno de estoque e equipamentos de proteção</p>
+          </div>
+        </div>
+        <div class="metadata">
+          <div><span>DATA DA CONTAGEM</span><strong id="previewData">—</strong></div>
+          <div><span>SETOR</span><strong id="previewSetor">Não informado</strong></div>
+          <div><span>TOTAL GERAL</span><strong id="previewTotal">0 unidades</strong></div>
+        </div>
+        <div id="previewItens" class="preview-items">
+          <div class="empty-state">
+            <span>▤</span>
+            <strong>Seu relatório aparecerá aqui</strong>
+            <p>Cole os dados à esquerda e clique em “Interpretar dados”.</p>
+          </div>
+        </div>
+        <div class="document-footer">Relatório Interno de Controle de Estoque <span id="previewPagina">Prévia</span></div>
+      </div>
+
+      <div class="export-row">
+        <button id="pdfBtn" class="button primary export-button" type="button">
+          <span>⇩</span> Gerar e baixar PDF
+        </button>
+        <button id="imprimirBtn" class="button secondary" type="button">Imprimir</button>
+      </div>
+      <p class="small-note">A geração de PDF usa uma biblioteca carregada pela internet. O restante do sistema roda no navegador e pode ser hospedado no GitHub Pages.</p>
+    </section>
+  </main>
+
+  <footer>Inventário de EPIs · Os dados ficam neste navegador enquanto a página estiver aberta; não são enviados para um servidor.</footer>
+</body>
+</html>
