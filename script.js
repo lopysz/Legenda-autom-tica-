@@ -305,6 +305,73 @@ audio.addEventListener("error", () => {
    CRIAÇÃO E EDIÇÃO DE LEGENDAS
 ========================================================= */
 
+function extrairTempoDeLinha(linha) {
+  const texto = String(linha || "").trim();
+  if (!texto) return null;
+
+  const match = texto.match(
+    /^(\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?)(?:\s*[:\-–]\s*|\s+)(.*)$/
+  );
+
+  if (!match) return null;
+
+  const tempoTexto = match[1];
+  const textoRestante = (match[2] || "").trim();
+
+  const tempoEmSegundos = campoParaTempo(tempoTexto);
+  if (!Number.isFinite(tempoEmSegundos) || tempoEmSegundos < 0) return null;
+
+  return {
+    inicio: tempoEmSegundos,
+    texto: textoRestante
+  };
+}
+
+function criarLegendasDoTexto(texto) {
+  const linhas = texto
+    .split(/\r?\n/)
+    .map(linha => linha.trim())
+    .filter(Boolean);
+
+  if (!linhas.length) return [];
+
+  const linhasComTempo = linhas
+    .map(linha => extrairTempoDeLinha(linha))
+    .filter(Boolean);
+
+  if (linhasComTempo.length === linhas.length) {
+    const novasLegendas = [];
+
+    for (let i = 0; i < linhasComTempo.length; i++) {
+      const atual = linhasComTempo[i];
+      const proximo = linhasComTempo[i + 1];
+
+      const fim = proximo
+        ? Math.max(atual.inicio + 0.5, proximo.inicio)
+        : Math.max(atual.inicio + 0.5, atual.inicio + 3);
+
+      novasLegendas.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + i),
+        texto: atual.texto,
+        inicio: atual.inicio,
+        fim
+      });
+    }
+
+    return novasLegendas;
+  }
+
+  const duracao = obterDuracao();
+  const intervalo = duracao > 0 ? duracao / linhas.length : 3;
+
+  return linhas.map((textoLinha, indice) => ({
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + indice),
+    texto: textoLinha,
+    inicio: indice * intervalo,
+    fim: (indice + 1) * intervalo
+  }));
+}
+
 $("criarLinhas").addEventListener("click", () => {
   const texto = $("letra").value.trim();
 
