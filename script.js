@@ -2747,3 +2747,226 @@ window.addEventListener("beforeunload", () => {
   }
 
 })();
+/* Timeline - integração de preview e pool
+   Cole este bloco AO FINAL do seu script.js
+*/
+(function () {
+  const overlay = document.getElementById('timelineOverlay');
+  const pool = document.getElementById('timelinePool');
+  const drop = document.getElementById('timelineDropArea');
+  const closeBtn = document.getElementById('closeTimeline');
+  const saveBtn = document.getElementById('saveTimeline');
+  const cancelBtn = document.getElementById('cancelTimeline');
+  const previewWrap = document.querySelector('.timeline-preview-wrap');
+
+  // elementos que vamos mover temporariamente
+  const canvas = document.getElementById('canvas');
+  const audioEl = document.getElementById('audio');
+
+  const state = {
+    canvasOriginal: null,
+    audioOriginal: null
+  };
+
+  // utilitário simples de formatação (usa sua função se existir)
+  function fmt(t) {
+    if (typeof formatarTempo === 'function') return formatarTempo(t);
+    const s = Math.floor(t % 60).toString().padStart(2, '0');
+    const m = Math.floor(t / 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+
+  function obterDuracaoSafe() {
+    try {
+      return (typeof obterDuracao === 'function') ? obterDuracao() : (audioEl?.duration || 0);
+    } catch (e) { return audioEl?.duration || 0; }
+  }
+
+  // Move um nó para o preview e salva seu pai para restaurar depois
+  function moveIntoPreview(node, storageKey) {
+    if (!node) return;
+    if (!state[storageKey]) {
+      state[storageKey] = { parent: node.parentNode, next: node.nextSibling };
+    }
+    previewWrap.innerHTML = ''; // limpar preview area
+    previewWrap.appendChild(node);
+  }
+
+  function restoreNode(storageKey) {
+    const info = state[storageKey];
+    if (!info || !info.parent) return;
+    const node = info.parent.querySelector && info.parent.contains ? info.parent.querySelector('*') : null;
+    // Instead of selector, we already stored parent/next; we must find the node now in previewWrap with matching id
+    let nodeToRestore = null;
+    if (storageKey === 'canvasOriginal') nodeToRestore = document.getElementById('canvas');
+    if (storageKey === 'audioOriginal') nodeToRestore = document.getElementById('audio');
+    if (!nodeToRestore) return;
+    try {
+      info.parent.insertBefore(nodeToRestore, info.next || null);
+    } catch (e) {
+      info.parent.appendChild(nodeToRestore);
+    }
+    state[storageKey] = null;
+  }
+
+  // abre timeline com array de linhas: [{id, text}, ...]
+  window.openTimeline = function (lines = [], estimatedTimes = []) {
+    console.log('openTimeline called lines=', lines);
+
+    // move canvas + audio para preview (preserva estado)
+    if (canvas) moveIntoPreview(canvas, 'canvasOriginal');
+    if (audioEl) {
+      // mostrar controles se estiver oculto
+      audioEl.controls = true;
+      moveIntoPreview(audioEl, 'audioOriginal');
+    }
+
+    // preencher pool
+    pool.innerHTML = '';
+    const filtered = (lines || []).map(l => (typeof l === 'string' ? { id: null, text: l } : l))
+                                 .map((l, i) => ({ id: l.id ?? ('l' + i), text: (l.text||'').trim(), idx: i }));
+
+    const nonEmpty = filtered.filter(x => x.text && x.text.length > 0);
+
+    if (nonEmpty.length === 0) {
+      pool.innerHTML = '<div class="empty-state">Nenhuma linha detectada. Cole a letra no campo ou use "Criar legendas".</div>';
+    } else {
+      const duration = obterDuracaoSafe() || 60;
+      nonEmpty.forEach((item, i) => {
+        const estStart = estimatedTimes?.[item.idx] ?? Math.max(0, (i / nonEmpty.length) * duration);
+        const estEnd = Math.min(duration, estStart + 3);
+        const div = document.createElement('div');
+        div.className = 'pool-item';
+        div.draggable = true;
+        div.dataset.id = item.id;
+        div.dataset.text = item.text;
+        div.dataset.start = estStart;
+        div.dataset.end = estEnd;
+        div.innerHTML = `<div class="times">${fmt(estStart)} — ${fmt(estEnd)}</div><div class="text">${item.text}</div>`;
+        div.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('text/plain', JSON.stringify({ id: item.id, text: item.text, start: estStart, end: estEnd }));
+          ev.dataTransfer.effectAllowed = 'copy';
+        });
+        pool.appendChild(div);
+      });
+    }
+
+    // limpar timeline drop area
+    if (drop) drop.innerHTML = '';
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+
+    // se não há áudio alertar
+    if (!audioEl || !audioEl.src) {
+      console.info('Atenção: nenhum áudio carregado. Importe um arquivo em "Importar áudio".');
+    }
+  };
+
+  function closeTimeline() {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+
+    // restaurar canvas e audio para os lugares originais
+    restoreNode('canvasOriginal');
+    restoreNode('audioOriginal');
+
+    // opcional: remover controles do audio se quiser
+    if (audioEl) audioEl.controls = false;
+  }
+
+  closeBtn?.addEventListener('click', closeTimeline);
+  cancelBtn?.addEventListener('click', closeTimeline);
+
+  saveBtn?.addEventListener('click', () => {
+    // extrai os clips criados e envia para console (você integra com legendas[] depois)
+    const clips = Array.from(drop.querySelectorAll('.timeline-clip')).map(el => ({
+      id: el.dataset.id,
+      text: el.dataset.text,
+      start: Number(el.dataset.start),
+      end: Number(el.dataset.end)
+    }));
+    console.log('Clips salvo (timeline):', clips);
+    // TODO: integrar com seu array legendas[]
+    closeTimeline();
+  });
+
+  // Drop handlers (simples)
+  if (drop) {
+    drop.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'copy';
+    });
+
+    drop.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      const data = ev.dataTransfer.getData('text/plain');
+      if (!data) return;
+      const obj = JSON.parse(data);
+      const rect = drop.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, x / rect.width));
+      const duration = obterDuracaoSafe() || 60;
+      const start = pct * duration;
+      const defaultDur = 3;
+      createClipOnTimeline(obj.id, obj.text, start, Math.min(duration, start + defaultDur));
+    });
+  }
+
+  function createClipOnTimeline(id, text, start, end) {
+    const rect = drop.getBoundingClientRect();
+    const duration = obterDuracaoSafe() || 60;
+    const leftPct = (start / duration) * 100;
+    const widthPct = ((end - start) / duration) * 100;
+
+    const clip = document.createElement('div');
+    clip.className = 'timeline-clip';
+    clip.style.left = `${leftPct}%`;
+    clip.style.width = `${Math.max(2, widthPct)}%`;
+    clip.dataset.id = id;
+    clip.dataset.text = text;
+    clip.dataset.start = start;
+    clip.dataset.end = end;
+    clip.innerHTML = `<div class="label">${text}</div><div class="times-mini">${fmt(start)}</div>`;
+
+    // arrastar para mover (simples)
+    let dragging = null;
+    clip.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      dragging = { startX: ev.clientX, origLeft: parseFloat(clip.style.left) };
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+
+    function onMove(ev) {
+      if (!dragging) return;
+      const dx = ev.clientX - dragging.startX;
+      const pctDelta = (dx / rect.width) * 100;
+      let newLeft = dragging.origLeft + pctDelta;
+      newLeft = Math.max(0, Math.min(100 - parseFloat(clip.style.width), newLeft));
+      clip.style.left = newLeft + '%';
+      const newStart = (newLeft / 100) * duration;
+      const width = parseFloat(clip.style.width);
+      const newEnd = newStart + (width / 100) * duration;
+      clip.dataset.start = newStart;
+      clip.dataset.end = newEnd;
+      const tMini = clip.querySelector('.times-mini');
+      if (tMini) tMini.textContent = fmt(newStart);
+    }
+
+    function onUp() {
+      dragging = null;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    }
+
+    drop.appendChild(clip);
+  }
+
+  // se quiser abrir a timeline via botão já presente (btnOpenTimeline), conecte aqui
+  document.getElementById('btnOpenTimeline')?.addEventListener('click', () => {
+    const texto = (document.getElementById('letra')?.value || '').trim();
+    const lines = texto ? texto.split('\n').map((t, i) => ({ id: 'l' + i, text: t.trim() })) : [];
+    window.openTimeline(lines, []); // estimatedTimes - futuramente substitua por auto-align
+  });
+
+})();
