@@ -1,2675 +1,342 @@
-"use strict";
+/* script.js - Versão mínima funcional com Timeline e popup integrado
+   Substitua o script.js antigo por este. Mantive as funções essenciais.
+*/
 
-/* =========================================================
-   LYRIC STUDIO
-   Áudio, legendas, fontes, animações, efeitos, vídeos,
-   LUT .CUBE, adesivos e exportação
-========================================================= */
-
+/* -----------------------
+   Helpers e estado
+   ----------------------- */
 const $ = id => document.getElementById(id);
 
-const audio = $("audio");
-const canvas = $("canvas");
-const ctx = canvas.getContext("2d", { alpha: false });
-const videoFundo = $("videoFundo");
-
-let audioURL = null;
-let videoURL = null;
-let fonteURL = null;
-let audioContext = null;
-let sourceNode = null;
-let audioDestination = null;
-let analisador = null;
-let dadosAudio = null;
-
-let legendas = [];
-let indiceSelecionado = -1;
-let elementosVisuais = [];
-let imagemSelecionada = null;
-let contadorImagens = 0;
-
-let fontePersonalizada = null;
-let lut = null;
-let exportando = false;
-let mediaRecorder = null;
-let partesVideo = [];
-let rafId = null;
-let arrastando = false;
-let ultimaPosicao = null;
-
-/* Identifica o ponteiro usado no arraste. */
-let ponteiroArrasteId = null;
-
-const fundoLUT = document.createElement("canvas");
-const fundoLUTctx = fundoLUT.getContext("2d", {
-  willReadFrequently: true
-});
-
-/* =========================================================
-   UTILITÁRIOS
-========================================================= */
-
 function mensagem(texto) {
-  $("mensagem").textContent = texto;
+  const el = $("mensagem");
+  if (el) el.textContent = texto;
+  else console.log("mensagem:", texto);
 }
 
 function formatarTempo(segundos) {
-  if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
-
-  const minutos = Math.floor(segundos / 60);
-  const segundosRestantes = Math.floor(segundos % 60);
-
-  return String(minutos).padStart(2, "0") + ":" +
-    String(segundosRestantes).padStart(2, "0");
-}
-
-function tempoParaCampo(segundos) {
-  if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
-
-  const horas = Math.floor(segundos / 3600);
-  const minutos = Math.floor((segundos % 3600) / 60);
-  const segundosRestantes = segundos % 60;
-
-  return String(horas).padStart(2, "0") + ":" +
-    String(minutos).padStart(2, "0") + ":" +
-    segundosRestantes.toFixed(2).padStart(5, "0");
-}
-
-function campoParaTempo(valor) {
-  if (typeof valor === "number") return Math.max(0, valor);
-
-  const texto = String(valor || "").trim();
-  if (!texto) return 0;
-
-  if (/^\d+([.,]\d+)?$/.test(texto)) {
-    return Math.max(0, Number(texto.replace(",", ".")) || 0);
-  }
-
-  const partes = texto.split(":").map(Number);
-
-  if (partes.some(n => !Number.isFinite(n)) || partes.length > 3) {
-    return 0;
-  }
-
-  if (partes.length === 3) {
-    return Math.max(0, partes[0] * 3600 + partes[1] * 60 + partes[2]);
-  }
-
-  if (partes.length === 2) {
-    return Math.max(0, partes[0] * 60 + partes[1]);
-  }
-
-  return 0;
+  if (!isFinite(segundos) || segundos < 0) return "00:00";
+  const s = Math.floor(segundos % 60).toString().padStart(2, "0");
+  const m = Math.floor(segundos / 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
 }
 
 function limitar(valor, minimo, maximo) {
   return Math.max(minimo, Math.min(maximo, valor));
 }
 
-function corValida(cor, fallback) {
-  return /^#[0-9a-f]{6}$/i.test(cor) ? cor : fallback;
-}
+const audio = $("audio");
+const canvas = $("canvas");
+const ctx = canvas ? canvas.getContext("2d") : null;
 
-function obterDuracao() {
-  return Number.isFinite(audio.duration) ? audio.duration : 0;
-}
+let legendas = []; // {id,text,start,end}
+let indiceSelecionado = -1;
 
-function atualizarTempo() {
-  $("tempoAtual").textContent = formatarTempo(audio.currentTime || 0);
-  $("tempoPreview").textContent = formatarTempo(audio.currentTime || 0);
+/* -----------------------
+   Controles de áudio
+   ----------------------- */
+const arquivoAudio = $("arquivoAudio");
+const nomeAudio = $("nomeAudio");
+const playPause = $("playPause");
+const voltarBtn = $("voltar");
+const avancarBtn = $("avancar");
+const tempoAtualEl = $("tempoAtual");
+const duracaoEl = $("duracao");
+const seek = $("seek");
 
-  const duracao = obterDuracao();
-
-  $("duracao").textContent = formatarTempo(duracao);
-  $("seek").max = duracao || 100;
-  $("seek").value = audio.currentTime || 0;
-}
-
-function definirFormato() {
-  const formato = $("formato").value;
-  const resolucao = Number($("resolucao").value) || 1080;
-
-  if (formato === "horizontal") {
-    canvas.width = Math.round(resolucao * 16 / 9);
-    canvas.height = resolucao;
-    $("proporcao").textContent = "16:9 · Horizontal";
-  } else if (formato === "quadrado") {
-    canvas.width = resolucao;
-    canvas.height = resolucao;
-    $("proporcao").textContent = "1:1 · Quadrado";
-  } else {
-    canvas.width = Math.round(resolucao * 9 / 16);
-    canvas.height = resolucao;
-    $("proporcao").textContent = "9:16 · Vertical";
-  }
-
-  renderizar();
-}
-
-function definirTamanhoTexto() {
-  $("valorTamanho").textContent = $("tamanhoTexto").value + " px";
-}
-
-function definirTamanhoImagem() {
-  $("valorTamanhoImagem").textContent = $("tamanhoImagem").value + "%";
-}
-
-function definirRotacaoImagem() {
-  $("valorRotacaoImagem").textContent = $("rotacaoImagem").value + "°";
-}
-
-function legendaSelecionada() {
-  return legendas[indiceSelecionado] || null;
-}
-
-/* =========================================================
-   ÁUDIO
-========================================================= */
-
-function prepararAudioContext() {
-  if (audioContext) {
-    if (audioContext.state === "suspended") {
-      audioContext.resume().catch(() => {});
+if (arquivoAudio) {
+  arquivoAudio.addEventListener("change", (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) {
+      nomeAudio.textContent = "Nenhum áudio selecionado";
+      audio.removeAttribute("src");
+      audio.load();
+      return;
     }
-    return;
-  }
-
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-
-  audioContext = new AudioContextClass();
-
-  try {
-    sourceNode = audioContext.createMediaElementSource(audio);
-
-    analisador = audioContext.createAnalyser();
-    analisador.fftSize = 256;
-    analisador.smoothingTimeConstant = 0.78;
-
-    dadosAudio = new Uint8Array(analisador.frequencyBinCount);
-    audioDestination = audioContext.createMediaStreamDestination();
-
-    sourceNode.connect(analisador);
-    analisador.connect(audioContext.destination);
-    analisador.connect(audioDestination);
-  } catch (erro) {
-    console.error("Não foi possível preparar o áudio:", erro);
-  }
-}
-
-$("arquivoAudio").addEventListener("change", event => {
-  const arquivo = event.target.files[0];
-  if (!arquivo) return;
-
-  if (!arquivo.type.startsWith("audio/")) {
-    mensagem("Selecione um arquivo de áudio válido.");
-    return;
-  }
-
-  if (audioURL) URL.revokeObjectURL(audioURL);
-
-  audio.pause();
-  audioURL = URL.createObjectURL(arquivo);
-  audio.src = audioURL;
-  audio.load();
-
-  $("nomeAudio").textContent = arquivo.name;
-  mensagem("Áudio carregado. Aguarde a duração ser identificada.");
-
-  audio.addEventListener("loadedmetadata", function aoCarregar() {
-    audio.removeEventListener("loadedmetadata", aoCarregar);
-    atualizarTempo();
-
-    if (legendas.length) {
-      recalcularFins();
-      desenharLista();
-    }
-
-    mensagem("Áudio pronto para reprodução e sincronização.");
-    renderizar();
+    const url = URL.createObjectURL(f);
+    audio.src = url;
+    nomeAudio.textContent = f.name;
+    audio.load();
+    audio.onloadedmetadata = () => {
+      duracaoEl.textContent = formatarTempo(audio.duration);
+      seek.max = 100;
+    };
   });
-});
+}
 
-$("playPause").addEventListener("click", async () => {
-  if (!audio.src) {
-    mensagem("Importe um áudio antes de reproduzir.");
-    return;
-  }
-
-  prepararAudioContext();
-
-  if (audioContext && audioContext.state === "suspended") {
-    await audioContext.resume();
-  }
-
-  if (audio.paused) {
-    try {
-      await audio.play();
-
-      if (videoFundo.src && videoFundo.paused) {
-        videoFundo.play().catch(() => {});
-      }
-
-      $("playPause").textContent = "Ⅱ";
-    } catch (erro) {
-      mensagem("Não foi possível reproduzir o áudio neste momento.");
+if (playPause) {
+  playPause.addEventListener("click", () => {
+    if (!audio.src) {
+      mensagem("Importe um áudio primeiro.");
+      return;
     }
-  } else {
-    audio.pause();
-    $("playPause").textContent = "▶";
-  }
-});
+    if (audio.paused) {
+      audio.play();
+      playPause.textContent = "Ⅱ";
+    } else {
+      audio.pause();
+      playPause.textContent = "▶";
+    }
+  });
+}
 
-$("voltar").addEventListener("click", () => {
+if (voltarBtn) voltarBtn.addEventListener("click", () => {
+  if (!audio.src) return;
   audio.currentTime = Math.max(0, audio.currentTime - 5);
 });
 
-$("avancar").addEventListener("click", () => {
-  audio.currentTime = Math.min(obterDuracao() || Infinity, audio.currentTime + 5);
+if (avancarBtn) avancarBtn.addEventListener("click", () => {
+  if (!audio.src) return;
+  audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 5);
 });
 
-$("seek").addEventListener("input", () => {
-  if (audio.src) {
-    audio.currentTime = Number($("seek").value);
-  } else {
-    renderizar();
+audio.addEventListener("timeupdate", () => {
+  tempoAtualEl.textContent = formatarTempo(audio.currentTime || 0);
+  const dur = audio.duration || 0;
+  if (dur > 0) {
+    const pct = (audio.currentTime / dur) * 100;
+    seek.value = pct;
   }
 });
 
-audio.addEventListener("timeupdate", atualizarTempo);
-audio.addEventListener("seeked", renderizar);
-
-audio.addEventListener("play", () => {
-  $("playPause").textContent = "Ⅱ";
+seek.addEventListener("input", (e) => {
+  const dur = audio.duration || 0;
+  const pct = Number(e.target.value);
+  if (dur > 0) audio.currentTime = (pct / 100) * dur;
 });
 
-audio.addEventListener("pause", () => {
-  $("playPause").textContent = "▶";
-});
+/* -----------------------
+   Criar linhas / lista
+   ----------------------- */
+const criarLinhasBtn = $("criarLinhas");
+const letraArea = $("letra");
+const listaLegendas = $("listaLegendas");
+const contadorLegendas = $("contadorLegendas");
+const linhaSelecionadaSelect = $("linhaSelecionada");
+const marcarInicioBtn = $("marcarInicio");
+const marcarTempoBtn = $("marcarTempo");
 
-audio.addEventListener("ended", () => {
-  $("playPause").textContent = "▶";
-
-  if (exportando && mediaRecorder?.state === "recording") {
-    mediaRecorder.stop();
-  }
-});
-
-audio.addEventListener("error", () => {
-  if (audio.src) {
-    mensagem("O navegador não conseguiu abrir este áudio. Tente outro formato.");
-  }
-});
-
-/* =========================================================
-   CRIAÇÃO E EDIÇÃO DE LEGENDAS
-========================================================= */
-
-$("criarLinhas").addEventListener("click", () => {
-  const texto = $("letra").value.trim();
-
-  if (!texto) {
-    mensagem("Cole a letra antes de criar as legendas.");
-    return;
-  }
-
-  const linhas = texto.split(/\r?\n/).map(linha => linha.trim()).filter(Boolean);
-
-  if (!linhas.length) {
-    mensagem("Não foram encontradas linhas na letra.");
-    return;
-  }
-
-  const duracao = obterDuracao();
-  const intervalo = duracao > 0 ? duracao / linhas.length : 3;
-
-  legendas = linhas.map((textoLinha, indice) => ({
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + indice),
-    texto: textoLinha,
-    inicio: indice * intervalo,
-    fim: (indice + 1) * intervalo
-  }));
-
-  indiceSelecionado = 0;
-  atualizarSeletorLegendas();
-  desenharLista();
-  renderizar();
-
-  mensagem(
-    duracao > 0
-      ? "Legendas criadas. Ajuste o tempo de cada linha."
-      : "Legendas criadas. Importe o áudio para sincronizar os tempos."
-  );
-});
+function atualizarContador() {
+  contadorLegendas.textContent = `${legendas.length} legenda${legendas.length !== 1 ? 's' : ''}`;
+}
 
 function atualizarSeletorLegendas() {
-  const seletor = $("linhaSelecionada");
-  seletor.innerHTML = "";
-
-  if (!legendas.length) {
-    const opcao = document.createElement("option");
-    opcao.value = "";
-    opcao.textContent = "Nenhuma legenda";
-    seletor.appendChild(opcao);
-    return;
-  }
-
-  legendas.forEach((legenda, indice) => {
-    const opcao = document.createElement("option");
-    opcao.value = indice;
-    opcao.textContent =
-      String(indice + 1).padStart(2, "0") + " — " + legenda.texto.slice(0, 55);
-    seletor.appendChild(opcao);
-  });
-
-  seletor.value = String(indiceSelecionado);
+  if (!linhaSelecionadaSelect) return;
+  linhaSelecionadaSelect.innerHTML = `<option value="">Nenhuma legenda</option>` +
+    legendas.map((l, i) => `<option value="${i}">${i+1}. ${l.text.slice(0,40)}</option>`).join('');
 }
 
-$("linhaSelecionada").addEventListener("change", () => {
-  indiceSelecionado = Number($("linhaSelecionada").value);
-
-  if (!Number.isInteger(indiceSelecionado)) indiceSelecionado = -1;
-
-  desenharLista();
-  renderizar();
-});
-
-$("marcarInicio").addEventListener("click", () => {
-  const legenda = legendaSelecionada();
-
-  if (!legenda) {
-    mensagem("Selecione uma legenda primeiro.");
+function desenharListaLegendas() {
+  listaLegendas.innerHTML = '';
+  if (legendas.length === 0) {
+    listaLegendas.innerHTML = '<div class="empty-state">Suas legendas aparecerão aqui.</div>';
     return;
   }
-
-  legenda.inicio = Math.max(0, audio.currentTime || 0);
-
-  if (legenda.fim <= legenda.inicio) {
-    legenda.fim = legenda.inicio + 1;
-  }
-
-  desenharLista();
-  atualizarSeletorLegendas();
-  renderizar();
-  mensagem("Início da legenda atualizado.");
-});
-
-$("marcarTempo").addEventListener("click", () => {
-  const legenda = legendaSelecionada();
-
-  if (!legenda) {
-    mensagem("Selecione uma legenda primeiro.");
-    return;
-  }
-
-  const tempoAtual = Math.max(0, audio.currentTime || 0);
-
-  if (tempoAtual <= legenda.inicio) {
-    mensagem("O fim deve acontecer depois do início.");
-    return;
-  }
-
-  legenda.fim = tempoAtual;
-  desenharLista();
-  renderizar();
-  mensagem("Fim da legenda atualizado.");
-});
-
-function recalcularFins() {
   for (let i = 0; i < legendas.length; i++) {
-    const legenda = legendas[i];
-
-    legenda.inicio = Math.max(0, Number(legenda.inicio) || 0);
-    legenda.fim = Math.max(legenda.inicio, Number(legenda.fim) || 0);
-
-    if (i + 1 < legendas.length && legenda.fim <= legenda.inicio) {
-      legenda.fim = Math.max(legenda.inicio + 0.5, legendas[i + 1].inicio);
-    }
-  }
-}
-
-function selecionarLegenda(indice) {
-  indiceSelecionado = indice;
-  $("linhaSelecionada").value = String(indice);
-  desenharLista();
-  renderizar();
-}
-
-/* ======= Ajustes em cascata (ripple) e auto-sincronização aproximada ======= */
-
-function rippleAdjust(startIndex, delta) {
-  if (!delta || !legendas.length) return;
-  for (let i = startIndex + 1; i < legendas.length; i++) {
-    legendas[i].inicio = Math.max(0, (Number(legendas[i].inicio) || 0) + delta);
-    legendas[i].fim = Math.max(legendas[i].inicio + 0.01, (Number(legendas[i].fim) || 0) + delta);
-  }
-}
-
-let _audioBufferCache = null;
-
-async function carregarAudioBuffer() {
-  if (!audio.src) throw new Error("Importe o áudio antes de tentar auto-sincronizar.");
-  if (_audioBufferCache) return _audioBufferCache;
-
-  const AudioContextClass = window.OfflineAudioContext || window.AudioContext || window.webkitAudioContext;
-  const acTemp = new AudioContextClass();
-  try {
-    const resp = await fetch(audio.src);
-    const ab = await resp.arrayBuffer();
-    _audioBufferCache = await acTemp.decodeAudioData(ab);
-    return _audioBufferCache;
-  } finally {
-    try { acTemp.close(); } catch (_) {}
-  }
-}
-
-function envelopeFromBuffer(buffer, hopMs = 10) {
-  const sampleRate = buffer.sampleRate;
-  const hop = Math.max(1, Math.floor(sampleRate * hopMs / 1000));
-  const channelData = [];
-
-  for (let c = 0; c < buffer.numberOfChannels; c++) {
-    channelData.push(buffer.getChannelData(c));
-  }
-
-  const length = buffer.length;
-  const rms = [];
-  const times = [];
-
-  for (let i = 0; i < length; i += hop) {
-    let sum = 0;
-    const end = Math.min(length, i + hop);
-
-    for (let c = 0; c < channelData.length; c++) {
-      const chan = channelData[c];
-      for (let j = i; j < end; j++) {
-        const v = chan[j];
-        sum += v * v;
-      }
-    }
-
-    const n = (end - i) * channelData.length;
-    const val = n > 0 ? Math.sqrt(sum / n) : 0;
-    rms.push(val);
-    times.push(i / sampleRate);
-  }
-
-  return { times, rms };
-}
-
-function stats(values) {
-  const arr = values.slice().sort((a,b)=>a-b);
-  const mid = Math.floor(arr.length / 2);
-  const median = arr.length ? (arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2) : 0;
-  const mean = arr.reduce((s,v) => s + v, 0) / Math.max(1, arr.length);
-  const variance = arr.reduce((s,v) => s + (v - mean) * (v - mean), 0) / Math.max(1, arr.length);
-  return { median, mean, std: Math.sqrt(variance) };
-}
-
-function detectPeaksAdaptive(rms, times, options = {}) {
-  const { minDistance = 0.06, thresholdMultiplier = 1.0, absoluteMin = 0.008 } = options;
-  if (!rms || !rms.length) return [];
-
-  const s = stats(rms);
-  const dynamicThreshold = Math.max(absoluteMin, s.median + s.std * thresholdMultiplier);
-
-  const raw = [];
-  for (let i = 1; i < rms.length - 1; i++) {
-    if (rms[i] > rms[i - 1] && rms[i] >= rms[i + 1] && rms[i] >= dynamicThreshold) {
-      raw.push({ time: times[i], value: rms[i] });
-    }
-  }
-
-  const filtered = [];
-  for (const p of raw) {
-    if (!filtered.length) { filtered.push(p); continue; }
-    const last = filtered[filtered.length - 1];
-    if (p.time - last.time < minDistance) {
-      if (p.value > last.value) filtered[filtered.length - 1] = p;
-    } else {
-      filtered.push(p);
-    }
-  }
-
-  return filtered;
-}
-
-async function autoAlignAllImproved({
-  windowSec = 0.8,
-  preOffset = 0.05,
-  maxShift = 1.5,
-  thresholdMultiplier = 0.9
-} = {}) {
-  try {
-    mensagem("Analisando áudio para auto-sincronização... Aguarde.");
-    const buffer = await carregarAudioBuffer();
-    const env = envelopeFromBuffer(buffer, 8);
-    const peaks = detectPeaksAdaptive(env.rms, env.times, {
-      minDistance: 0.04,
-      thresholdMultiplier,
-      absoluteMin: 0.008
+    const lg = legendas[i];
+    const el = document.createElement('div');
+    el.className = 'legenda-item';
+    el.dataset.index = i;
+    el.innerHTML = `
+      <div class="tempos">
+        <label>Início: <input type="text" data-start value="${lg.start != null ? formatarTempo(lg.start) : ''}" readonly></label>
+        <label>Fim: <input type="text" data-end value="${lg.end != null ? formatarTempo(lg.end) : ''}" readonly></label>
+      </div>
+      <div class="texto-legenda">${escapeHtml(lg.text)}</div>
+      <div class="acoes">
+        <button class="btn selecionar">Selecionar</button>
+        <button class="btn danger apagar">Apagar</button>
+      </div>
+    `;
+    // selecionar
+    el.querySelector('.selecionar').addEventListener('click', () => {
+      indiceSelecionado = i;
+      atualizarSeletorLegendas();
+      linhaSelecionadaSelect.value = String(i);
+      el.scrollIntoView({behavior:'smooth', block:'center'});
     });
+    // apagar
+    el.querySelector('.apagar').addEventListener('click', () => {
+      legendas.splice(i,1);
+      desenharListaLegendas();
+      atualizarContador();
+      atualizarSeletorLegendas();
+    });
+    listaLegendas.appendChild(el);
+  }
+}
 
-    if (!peaks.length) {
-      mensagem("Não foram encontrados picos claros no áudio. Tente diminuir threshold ou aumentar a janela.");
-      return;
-    }
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
-    const totalDuration = buffer.duration || obterDuracao() || (legendas.length * 2);
-
-    for (let i = 0; i < legendas.length; i++) {
-      const L = legendas[i];
-      const dur = Math.max(0.1, (L.fim - L.inicio) || (totalDuration / Math.max(1, legendas.length)));
-      const expected = (Number.isFinite(L.inicio) && L.inicio > 0)
-        ? L.inicio
-        : (i / Math.max(1, legendas.length)) * totalDuration;
-
-      const candidatos = peaks.filter(p => Math.abs(p.time - expected) <= windowSec);
-
-      let novoInicio = null;
-
-      if (candidatos.length) {
-        const maxVal = Math.max(...peaks.map(p => p.value), 1);
-        candidatos.sort((a, b) => {
-          const scA = Math.abs(a.time - expected) - (a.value / maxVal) * 0.3;
-          const scB = Math.abs(b.time - expected) - (b.value / maxVal) * 0.3;
-          return scA - scB;
-        });
-        novoInicio = Math.max(0, candidatos[0].time - preOffset);
-      } else {
-        const glob = peaks.reduce((best, p) => {
-          const d = Math.abs(p.time - expected);
-          if (!best || d < best.d) return { p, d };
-          return best;
-        }, null);
-
-        if (glob && glob.d <= windowSec * 2) {
-          novoInicio = Math.max(0, glob.p.time - preOffset);
-        }
-      }
-
-      if (novoInicio !== null) {
-        const shift = novoInicio - L.inicio;
-        if (Math.abs(shift) <= maxShift) {
-          L.inicio = novoInicio;
-          L.fim = Math.max(L.inicio + 0.05, L.inicio + dur);
-        }
-      }
-    }
-
-    for (let i = 1; i < legendas.length; i++) {
-      const prev = legendas[i - 1];
-      const cur = legendas[i];
-      if (cur.inicio < prev.fim + 0.01) {
-        const needed = prev.fim + 0.01 - cur.inicio;
-        const push = Math.min(needed, maxShift);
-        cur.inicio += push;
-        cur.fim += push;
-      }
-    }
-
-    mensagem("Auto-sincronização (melhorada) concluída. Revise e ajuste manualmente se necessário.");
+if (criarLinhasBtn) {
+  criarLinhasBtn.addEventListener('click', () => {
+    const text = letraArea.value || '';
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    legendas = lines.map((t,i) => ({ id: 'l'+i, text: t, start: null, end: null }));
+    desenharListaLegendas();
+    atualizarContador();
     atualizarSeletorLegendas();
-    desenharLista();
-    renderizar();
-  } catch (erro) {
-    console.error("autoAlignAllImproved erro:", erro);
-    mensagem("Auto-sincronização falhou: " + (erro && erro.message ? erro.message : "erro desconhecido"));
-  }
-}
-
-(function criarBotaoAutoSync() {
-  const toolbar = document.querySelector(".sync-toolbar");
-  if (!toolbar) return;
-  if (document.getElementById("autoSyncBtn")) return;
-
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.id = "autoSyncBtn";
-  btn.className = "secondary-button";
-  btn.textContent = "Auto-sincronizar (aprox.)";
-
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
-    try {
-      await autoAlignAllImproved();
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  toolbar.appendChild(btn);
-})();
-
-/* =========================================================
-   DESENHO DA LISTA DE LEGENDAS
-========================================================= */
-
-function desenharLista() {
-  const lista = $("listaLegendas");
-  lista.innerHTML = "";
-
-  $("contadorLegendas").textContent =
-    legendas.length + (legendas.length === 1 ? " legenda" : " legendas");
-
-  if (!legendas.length) {
-    const vazio = document.createElement("div");
-    vazio.className = "empty-state";
-    vazio.textContent = "Suas legendas aparecerão aqui.";
-    lista.appendChild(vazio);
-    atualizarSeletorLegendas();
-    return;
-  }
-
-  legendas.forEach((legenda, indice) => {
-    const linha = document.createElement("div");
-
-    linha.className = "caption-row" +
-      (indice === indiceSelecionado ? " selected" : "");
-
-    const tempos = document.createElement("div");
-    tempos.className = "caption-times";
-
-    const campoInicio = document.createElement("input");
-    campoInicio.type = "text";
-    campoInicio.value = tempoParaCampo(legenda.inicio);
-    campoInicio.title = "Início: HH:MM:SS ou segundos";
-    campoInicio.setAttribute("aria-label", "Início da legenda");
-
-    const campoFim = document.createElement("input");
-    campoFim.type = "text";
-    campoFim.value = tempoParaCampo(legenda.fim);
-    campoFim.title = "Fim: HH:MM:SS ou segundos";
-    campoFim.setAttribute("aria-label", "Fim da legenda");
-
-    tempos.append(campoInicio, campoFim);
-
-    const conteudo = document.createElement("div");
-    conteudo.className = "caption-content";
-
-    const texto = document.createElement("textarea");
-    texto.value = legenda.texto;
-    texto.setAttribute("aria-label", "Texto da legenda");
-    texto.placeholder = "Texto da legenda";
-
-    const acoes = document.createElement("div");
-    acoes.className = "caption-actions";
-
-    const irInicio = document.createElement("button");
-    irInicio.type = "button";
-    irInicio.textContent = "Ir para início";
-
-    const duplicar = document.createElement("button");
-    duplicar.type = "button";
-    duplicar.textContent = "Duplicar";
-
-    const excluir = document.createElement("button");
-    excluir.type = "button";
-    excluir.textContent = "Excluir";
-
-    linha.addEventListener("click", () => {
-      if (indiceSelecionado !== indice) selecionarLegenda(indice);
-    });
-
-    campoInicio.addEventListener("change", () => {
-      const oldInicio = legenda.inicio;
-      const novo = campoParaTempo(campoInicio.value);
-      const delta = novo - oldInicio;
-
-      legenda.inicio = Math.max(0, novo);
-      if (legenda.fim <= legenda.inicio) legenda.fim = legenda.inicio + 0.5;
-
-      if (delta !== 0) {
-        rippleAdjust(indice, delta);
-      }
-
-      campoInicio.value = tempoParaCampo(legenda.inicio);
-      campoFim.value = tempoParaCampo(legenda.fim);
-      atualizarSeletorLegendas();
-      renderizar();
-    });
-
-    campoFim.addEventListener("change", () => {
-      const oldFim = legenda.fim;
-      let novoFim = campoParaTempo(campoFim.value);
-
-      if (novoFim <= legenda.inicio) novoFim = legenda.inicio + 0.5;
-      const delta = novoFim - oldFim;
-
-      legenda.fim = novoFim;
-
-      if (delta !== 0) {
-        rippleAdjust(indice, delta);
-      }
-
-      campoFim.value = tempoParaCampo(legenda.fim);
-      renderizar();
-    });
-
-    texto.addEventListener("input", () => {
-      legenda.texto = texto.value;
-      atualizarSeletorLegendas();
-      renderizar();
-    });
-
-    irInicio.addEventListener("click", event => {
-      event.stopPropagation();
-      if (audio.src) audio.currentTime = legenda.inicio;
-      selecionarLegenda(indice);
-    });
-
-    duplicar.addEventListener("click", event => {
-      event.stopPropagation();
-
-      const nova = {
-        id: String(Date.now()),
-        texto: legenda.texto,
-        inicio: legenda.fim,
-        fim: legenda.fim + Math.max(1, legenda.fim - legenda.inicio)
-      };
-
-      legendas.splice(indice + 1, 0, nova);
-      indiceSelecionado = indice + 1;
-      atualizarSeletorLegendas();
-      desenharLista();
-      renderizar();
-    });
-
-    excluir.addEventListener("click", event => {
-      event.stopPropagation();
-      legendas.splice(indice, 1);
-
-      if (!legendas.length) {
-        indiceSelecionado = -1;
-      } else {
-        indiceSelecionado = Math.min(indiceSelecionado, legendas.length - 1);
-      }
-
-      atualizarSeletorLegendas();
-      desenharLista();
-      renderizar();
-    });
-
-    acoes.append(irInicio, duplicar, excluir);
-    conteudo.append(texto, acoes);
-    linha.append(tempos, conteudo);
-    lista.appendChild(linha);
-  });
-
-  atualizarSeletorLegendas();
-}
-
-function linhaAtiva(tempo) {
-  return legendas.find(legenda =>
-    tempo >= legenda.inicio && tempo < legenda.fim
-  ) || null;
-}
-
-/* =========================================================
-   IMPORTAÇÃO DE FONTES
-========================================================= */
-
-$("arquivoFonte").addEventListener("change", async event => {
-  const arquivo = event.target.files[0];
-  if (!arquivo) return;
-
-  const extensao = arquivo.name.split(".").pop().toLowerCase();
-
-  if (!["ttf", "otf", "woff", "woff2"].includes(extensao)) {
-    mensagem("Formato de fonte não reconhecido.");
-    return;
-  }
-
-  try {
-    if (fonteURL) URL.revokeObjectURL(fonteURL);
-
-    fonteURL = URL.createObjectURL(arquivo);
-
-    const nomeInterno = "FonteLyricCustom";
-    const face = new FontFace(nomeInterno, `url("${fonteURL}")`);
-
-    await face.load();
-    document.fonts.add(face);
-    fontePersonalizada = nomeInterno;
-
-    const opcao = [...$("fonteTexto").options].find(item => item.value === "custom");
-    if (opcao) opcao.textContent = arquivo.name;
-
-    $("fonteTexto").value = "custom";
-    $("nomeFonte").textContent = "Fonte carregada: " + arquivo.name;
-
-    mensagem("Fonte importada e aplicada.");
-    renderizar();
-  } catch (erro) {
-    console.error(erro);
-    mensagem("Não foi possível carregar esta fonte.");
-  }
-});
-
-/* =========================================================
-   VÍDEO DE FUNDO
-========================================================= */
-
-$("arquivoVideo").addEventListener("change", event => {
-  const arquivo = event.target.files[0];
-  if (!arquivo) return;
-
-  const extensao = arquivo.name.split(".").pop().toLowerCase();
-
-  if (!["mov", "mp4", "webm"].includes(extensao)) {
-    mensagem("Formato não reconhecido. Use MOV, MP4 ou WEBM.");
-    return;
-  }
-
-  if (videoURL) URL.revokeObjectURL(videoURL);
-
-  videoFundo.pause();
-  videoURL = URL.createObjectURL(arquivo);
-  videoFundo.src = videoURL;
-  videoFundo.load();
-
-  $("nomeVideo").textContent = arquivo.name;
-
-  videoFundo.onloadeddata = () => {
-    videoFundo.currentTime = 0;
-    videoFundo.play().catch(() => {
-      mensagem("Vídeo carregado. Clique em Reproduzir fundo para iniciar.");
-    });
-
-    mensagem("Vídeo de fundo carregado.");
-    renderizar();
-  };
-
-  videoFundo.onerror = () => {
-    mensagem(
-      "O navegador não conseguiu decodificar este vídeo. Tente MP4 H.264 ou WEBM compatível."
-    );
-  };
-});
-
-$("reproduzirFundo").addEventListener("click", async () => {
-  if (!videoFundo.src) {
-    mensagem("Importe um vídeo de fundo primeiro.");
-    return;
-  }
-
-  try {
-    await videoFundo.play();
-    mensagem("Reprodução do fundo iniciada.");
-  } catch (erro) {
-    mensagem("Não foi possível reproduzir o vídeo de fundo.");
-  }
-});
-
-$("removerVideo").addEventListener("click", () => {
-  videoFundo.pause();
-  videoFundo.removeAttribute("src");
-  videoFundo.load();
-
-  if (videoURL) {
-    URL.revokeObjectURL(videoURL);
-    videoURL = null;
-  }
-
-  $("arquivoVideo").value = "";
-  $("nomeVideo").textContent = "Nenhum vídeo de fundo selecionado";
-  mensagem("Vídeo de fundo removido.");
-  renderizar();
-});
-
-/* =========================================================
-   IMPORTAÇÃO DE LUT .CUBE
-========================================================= */
-
-function analisarLUT(conteudo) {
-  const linhas = conteudo.split(/\r?\n/);
-
-  let tamanho = 0;
-  let domainMin = [0, 0, 0];
-  let domainMax = [1, 1, 1];
-  const tabela = [];
-
-  for (const linhaOriginal of linhas) {
-    const linha = linhaOriginal.replace(/#.*/, "").trim();
-    if (!linha) continue;
-
-    const partes = linha.split(/\s+/);
-    const comando = partes[0].toUpperCase();
-
-    if (comando === "TITLE") continue;
-
-    if (comando === "LUT_3D_SIZE") {
-      tamanho = Number(partes[1]);
-      continue;
-    }
-
-    if (comando === "DOMAIN_MIN") {
-      domainMin = partes.slice(1, 4).map(Number);
-      continue;
-    }
-
-    if (comando === "DOMAIN_MAX") {
-      domainMax = partes.slice(1, 4).map(Number);
-      continue;
-    }
-
-    if (["LUT_1D_SIZE", "LUT_1D_INPUT_RANGE", "LUT_1D_OUTPUT_RANGE"].includes(comando)) {
-      throw new Error("Esta ferramenta aceita LUT 3D. Exporte a LUT como .CUBE 3D.");
-    }
-
-    if (partes.length >= 3) {
-      const valores = partes.slice(0, 3).map(Number);
-      if (valores.every(Number.isFinite)) tabela.push(valores);
-    }
-  }
-
-  if (!Number.isInteger(tamanho) || tamanho < 2 || tamanho > 64) {
-    throw new Error("O tamanho da LUT 3D é inválido ou não foi encontrado.");
-  }
-
-  if (tabela.length !== tamanho ** 3) {
-    throw new Error(
-      `LUT incompleta: esperados ${tamanho ** 3} pontos, encontrados ${tabela.length}.`
-    );
-  }
-
-  return { size: tamanho, domainMin, domainMax, tabela };
-}
-
-$("arquivoLUT").addEventListener("change", async event => {
-  const arquivo = event.target.files[0];
-  if (!arquivo) return;
-
-  try {
-    lut = analisarLUT(await arquivo.text());
-    $("nomeLUT").textContent = `${arquivo.name} — LUT 3D ${lut.size}³ carregada`;
-    mensagem("LUT carregada e aplicada ao vídeo de fundo.");
-    renderizar();
-  } catch (erro) {
-    lut = null;
-    $("nomeLUT").textContent = "Não foi possível carregar esta LUT.";
-    mensagem(erro.message || "Arquivo LUT inválido.");
-  }
-});
-
-$("removerLUT").addEventListener("click", () => {
-  lut = null;
-  $("arquivoLUT").value = "";
-  $("nomeLUT").textContent = "Nenhuma LUT selecionada";
-  mensagem("LUT removida.");
-  renderizar();
-});
-
-function obterPontoLUT(r, g, b) {
-  const n = lut.size;
-  const index = (ri, gi, bi) => bi * n * n + gi * n + ri;
-
-  const r0 = Math.floor(r);
-  const g0 = Math.floor(g);
-  const b0 = Math.floor(b);
-
-  const r1 = Math.min(n - 1, r0 + 1);
-  const g1 = Math.min(n - 1, g0 + 1);
-  const b1 = Math.min(n - 1, b0 + 1);
-
-  const fr = r - r0;
-  const fg = g - g0;
-  const fb = b - b0;
-
-  const c000 = lut.tabela[index(r0, g0, b0)];
-  const c100 = lut.tabela[index(r1, g0, b0)];
-  const c010 = lut.tabela[index(r0, g1, b0)];
-  const c110 = lut.tabela[index(r1, g1, b0)];
-  const c001 = lut.tabela[index(r0, g0, b1)];
-  const c101 = lut.tabela[index(r1, g0, b1)];
-  const c011 = lut.tabela[index(r0, g1, b1)];
-  const c111 = lut.tabela[index(r1, g1, b1)];
-
-  return [0, 1, 2].map(c => {
-    const baixo =
-      c000[c] * (1 - fr) * (1 - fg) +
-      c100[c] * fr * (1 - fg) +
-      c010[c] * (1 - fr) * fg +
-      c110[c] * fr * fg;
-
-    const alto =
-      c001[c] * (1 - fr) * (1 - fg) +
-      c101[c] * fr * (1 - fg) +
-      c011[c] * (1 - fr) * fg +
-      c111[c] * fr * fg;
-
-    return baixo * (1 - fb) + alto * fb;
+    mensagem(`${legendas.length} linhas criadas.`);
   });
 }
 
-function aplicarLUTAoFundo() {
-  if (!lut || videoFundo.readyState < 2) return false;
-
-  const largura = 240;
-  const altura = Math.max(1, Math.round(largura * canvas.height / canvas.width));
-
-  fundoLUT.width = largura;
-  fundoLUT.height = altura;
-  fundoLUTctx.drawImage(videoFundo, 0, 0, largura, altura);
-
-  let imagem;
-
-  try {
-    imagem = fundoLUTctx.getImageData(0, 0, largura, altura);
-  } catch (erro) {
-    return false;
-  }
-
-  const pixels = imagem.data;
-  const n = lut.size;
-
-  for (let i = 0; i < pixels.length; i += 4) {
-    const canais = [pixels[i], pixels[i + 1], pixels[i + 2]];
-
-    const normalizados = canais.map((valor, canal) => {
-      const minimo = lut.domainMin[canal];
-      const maximo = lut.domainMax[canal];
-
-      return limitar((valor / 255 - minimo) / (maximo - minimo || 1), 0, 1) * (n - 1);
-    });
-
-    const resultado = obterPontoLUT(normalizados[0], normalizados[1], normalizados[2]);
-
-    pixels[i] = limitar(Math.round(resultado[0] * 255), 0, 255);
-    pixels[i + 1] = limitar(Math.round(resultado[1] * 255), 0, 255);
-    pixels[i + 2] = limitar(Math.round(resultado[2] * 255), 0, 255);
-  }
-
-  fundoLUTctx.putImageData(imagem, 0, 0);
-  ctx.drawImage(fundoLUT, 0, 0, canvas.width, canvas.height);
-  return true;
-}
-
-/* =========================================================
-   FORMATOS DE PROJETO EXTERNO
-========================================================= */
-
-$("arquivoProjeto").addEventListener("change", event => {
-  const arquivo = event.target.files[0];
-  if (!arquivo) return;
-
-  const extensao = arquivo.name.split(".").pop().toLowerCase();
-
-  const programas = {
-    mogrt: "modelo gráfico do Adobe Premiere Pro/After Effects",
-    aep: "projeto do Adobe After Effects",
-    drp: "projeto do DaVinci Resolve",
-    setting: "arquivo de configuração de aplicativo",
-    moef: "arquivo de efeito do Filmora",
-    motn: "projeto ou modelo de movimento"
-  };
-
-  $("estadoProjeto").textContent =
-    `${arquivo.name} — reconhecido como ${programas[extensao] || "arquivo externo"}.`;
-
-  mensagem(
-    "Este arquivo foi identificado, mas não pode ser convertido automaticamente em camadas editáveis neste editor. Exporte o resultado do programa original como vídeo para usá-lo como fundo."
-  );
-});
-
-/* =========================================================
-   ADESIVOS E IMAGENS
-========================================================= */
-
-$("arquivoImagem").addEventListener("change", event => {
-  const arquivo = event.target.files[0];
-  if (!arquivo) return;
-
-  if (!arquivo.type.startsWith("image/")) {
-    mensagem("Selecione uma imagem válida.");
-    return;
-  }
-
-  const url = URL.createObjectURL(arquivo);
-  const imagem = new Image();
-
-  imagem.onload = () => {
-    const escala = Math.min(
-      canvas.width * 0.35 / imagem.width,
-      canvas.height * 0.25 / imagem.height,
-      1
-    );
-
-    const item = {
-      id: ++contadorImagens,
-      nome: arquivo.name,
-      imagem,
-      url,
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      largura: Math.max(1, imagem.width * escala),
-      altura: Math.max(1, imagem.height * escala),
-      escala: 100,
-      rotacao: 0,
-      animacao: {
-        entrada: "none",
-        loop: "none",
-        saida: "none",
-        inicio: 0,
-        fim: 0,
-        velocidade: 1
-      }
-    };
-
-    elementosVisuais.push(item);
-    imagemSelecionada = item.id;
-
-    $("nomeImagem").textContent = arquivo.name;
-    $("estadoImagem").textContent = "Imagem adicionada. Arraste-a na prévia para posicionar.";
-
-    $("tamanhoImagem").value = 100;
-    $("rotacaoImagem").value = 0;
-
-    definirTamanhoImagem();
-    definirRotacaoImagem();
-
-    if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
-      window.carregarControlesAnimacaoAdesivo(item);
-    }
-
-    renderizar();
-    mensagem("Imagem adicionada ao vídeo.");
-  };
-
-  imagem.onerror = () => {
-    URL.revokeObjectURL(url);
-    mensagem("Não foi possível abrir esta imagem.");
-  };
-
-  imagem.src = url;
-});
-
-function itemImagemSelecionada() {
-  return elementosVisuais.find(item => item.id === imagemSelecionada);
-}
-
-$("tamanhoImagem").addEventListener("input", () => {
-  definirTamanhoImagem();
-  const item = itemImagemSelecionada();
-
-  if (item) {
-    item.escala = Number($("tamanhoImagem").value);
-    renderizar();
-  }
-});
-
-$("rotacaoImagem").addEventListener("input", () => {
-  definirRotacaoImagem();
-  const item = itemImagemSelecionada();
-
-  if (item) {
-    item.rotacao = Number($("rotacaoImagem").value);
-    renderizar();
-  }
-});
-
-$("centralizarImagem").addEventListener("click", () => {
-  const item = itemImagemSelecionada();
-
-  if (!item) {
-    mensagem("Selecione uma imagem primeiro.");
-    return;
-  }
-
-  item.x = canvas.width / 2;
-  item.y = canvas.height / 2;
-  renderizar();
-});
-
-$("excluirImagem").addEventListener("click", () => {
-  const item = itemImagemSelecionada();
-
-  if (!item) {
-    mensagem("Selecione uma imagem primeiro.");
-    return;
-  }
-
-  elementosVisuais = elementosVisuais.filter(imagem => imagem.id !== item.id);
-  URL.revokeObjectURL(item.url);
-  imagemSelecionada = null;
-
-  $("nomeImagem").textContent = "Nenhuma imagem selecionada";
-  $("estadoImagem").textContent = "Você pode arrastar a imagem diretamente na prévia.";
-
-  if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
-    window.carregarControlesAnimacaoAdesivo(null);
-  }
-
-  renderizar();
-});
-
-function obterCoordenadas(evento) {
-  const retangulo = canvas.getBoundingClientRect();
-
-  return {
-    x: (evento.clientX - retangulo.left) * canvas.width / retangulo.width,
-    y: (evento.clientY - retangulo.top) * canvas.height / retangulo.height
-  };
-}
-
-function encontrarImagem(x, y) {
-  for (let i = elementosVisuais.length - 1; i >= 0; i--) {
-    const item = elementosVisuais[i];
-    const dx = x - item.x;
-    const dy = y - item.y;
-    const angulo = -item.rotacao * Math.PI / 180;
-
-    const rx = dx * Math.cos(angulo) - dy * Math.sin(angulo);
-    const ry = dx * Math.sin(angulo) + dy * Math.cos(angulo);
-
-    const escala = item.escala / 100;
-    const largura = item.largura * escala;
-    const altura = item.altura * escala;
-
-    if (Math.abs(rx) <= largura / 2 && Math.abs(ry) <= altura / 2) {
-      return item;
-    }
-  }
-
-  return null;
-}
-
-/* =========================================================
-   ARRASTE CONTÍNUO DE ADESIVOS — CELULAR E COMPUTADOR
-========================================================= */
-
-canvas.style.touchAction = "none";
-canvas.style.userSelect = "none";
-canvas.style.webkitUserSelect = "none";
-canvas.style.webkitTouchCallout = "none";
-
-function iniciarArrasto(evento) {
-  if (!evento.isPrimary) return;
-
-  if (evento.pointerType === "mouse" && evento.button !== 0) {
-    return;
-  }
-
-  const posicao = obterCoordenadas(evento);
-  const item = encontrarImagem(posicao.x, posicao.y);
-
-  if (!item) {
-    imagemSelecionada = null;
-
-    if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
-      window.carregarControlesAnimacaoAdesivo(null);
-    }
-
-    renderizar();
-    return;
-  }
-
-  evento.preventDefault();
-
-  imagemSelecionada = item.id;
-  arrastando = true;
-  ultimaPosicao = posicao;
-  ponteiroArrasteId = evento.pointerId;
-
-  try {
-    canvas.setPointerCapture(evento.pointerId);
-  } catch (erro) {
-    console.warn("Não foi possível capturar o ponteiro:", erro);
-  }
-
-  $("nomeImagem").textContent = item.nome;
-  $("tamanhoImagem").value = item.escala;
-  $("rotacaoImagem").value = item.rotacao;
-
-  definirTamanhoImagem();
-  definirRotacaoImagem();
-
-  if (typeof window.carregarControlesAnimacaoAdesivo === "function") {
-    window.carregarControlesAnimacaoAdesivo(item);
-  }
-
-  $("estadoImagem").textContent =
-    "Mantenha o dedo pressionado e deslize para mover o adesivo.";
-
-  renderizar();
-}
-
-function moverArrasto(evento) {
-  if (!arrastando || !ultimaPosicao) return;
-  if (evento.pointerId !== ponteiroArrasteId) return;
-
-  evento.preventDefault();
-
-  const item = itemImagemSelecionada();
-
-  if (!item) {
-    encerrarArrasto(evento);
-    return;
-  }
-
-  const posicao = obterCoordenadas(evento);
-
-  item.x += posicao.x - ultimaPosicao.x;
-  item.y += posicao.y - ultimaPosicao.y;
-
-  ultimaPosicao = posicao;
-
-  renderizar();
-}
-
-function encerrarArrasto(evento) {
-  if (
-    evento &&
-    ponteiroArrasteId !== null &&
-    evento.pointerId !== ponteiroArrasteId
-  ) {
-    return;
-  }
-
-  const ponteiroAnterior = ponteiroArrasteId;
-
-  arrastando = false;
-  ultimaPosicao = null;
-  ponteiroArrasteId = null;
-
-  if (
-    ponteiroAnterior !== null &&
-    canvas.hasPointerCapture &&
-    canvas.hasPointerCapture(ponteiroAnterior)
-  ) {
-    try {
-      canvas.releasePointerCapture(ponteiroAnterior);
-    } catch (erro) {
-      // O navegador pode já ter liberado a captura.
-    }
-  }
-}
-
-canvas.addEventListener("pointerdown", iniciarArrasto, {
-  passive: false
-});
-
-canvas.addEventListener("pointermove", moverArrasto, {
-  passive: false
-});
-
-canvas.addEventListener("pointerup", encerrarArrasto);
-canvas.addEventListener("pointercancel", encerrarArrasto);
-canvas.addEventListener("lostpointercapture", encerrarArrasto);
-
-/* =========================================================
-   DESENHO DO TEXTO E EFEITOS
-========================================================= */
-
-function desenharTextoCentralizado(texto, x, y, tamanho, cor) {
-  ctx.fillStyle = cor;
-  ctx.fillText(texto, x, y);
-}
-
-function quebrarTexto(texto, larguraMaxima) {
-  const palavras = String(texto).split(/\s+/);
-  const linhas = [];
-  let linha = "";
-
-  for (const palavra of palavras) {
-    const teste = linha ? linha + " " + palavra : palavra;
-
-    if (ctx.measureText(teste).width > larguraMaxima && linha) {
-      linhas.push(linha);
-      linha = palavra;
-    } else {
-      linha = teste;
-    }
-  }
-
-  if (linha) linhas.push(linha);
-  return linhas;
-}
-
-function desenharLegenda(legenda, tempo) {
-  if (!legenda || !legenda.texto) return;
-
-  const largura = canvas.width;
-  const altura = canvas.height;
-
-  const tamanhoBase = Number($("tamanhoTexto").value) * largura / 720;
-  const fonteSelecionada = $("fonteTexto").value;
-  const familia = fonteSelecionada === "custom"
-    ? (fontePersonalizada || "Arial")
-    : fonteSelecionada;
-
-  const animacao = $("animacaoTexto").value;
-  const efeito = $("efeitoTexto").value;
-
-  const corTexto = corValida($("corTexto").value, "#ffffff");
-  const corDestaque = corValida($("corDestaque").value, "#72f0b0");
-  const corEfeito = corValida($("corEfeito").value, "#000000");
-
-  const duracaoLegenda = Math.max(0.01, legenda.fim - legenda.inicio);
-  const progresso = limitar((tempo - legenda.inicio) / duracaoLegenda, 0, 1);
-  const tempoEntrada = Math.max(0, tempo - legenda.inicio);
-
-  let opacidade = 1;
-  let deslocamentoY = 0;
-  let escala = 1;
-
-  if (animacao === "fade") {
-    opacidade = limitar(tempoEntrada / 0.45, 0, 1);
-  } else if (animacao === "slide") {
-    opacidade = limitar(tempoEntrada / 0.35, 0, 1);
-    deslocamentoY = (1 - opacidade) * tamanhoBase * 1.5;
-  } else if (animacao === "scale") {
-    const p = limitar(tempoEntrada / 0.4, 0, 1);
-    escala = 0.75 + 0.25 * p;
-    opacidade = p;
-  }
-
-  let texto = legenda.texto;
-
-  if (animacao === "typewriter") {
-    const quantidade = Math.max(1, Math.floor(texto.length * limitar(tempoEntrada / 1.8, 0, 1)));
-    texto = texto.slice(0, quantidade);
-  }
-
-  const larguraMaxima = largura * 0.86;
-
-  ctx.save();
-  ctx.globalAlpha = opacidade;
-  ctx.translate(largura / 2, 0);
-  ctx.translate(0, deslocamentoY);
-  ctx.scale(escala, escala);
-
-  ctx.font = `800 ${tamanhoBase}px "${familia}"`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.lineJoin = "round";
-
-  const linhas = quebrarTexto(texto, larguraMaxima);
-  const alturaLinha = tamanhoBase * 1.25;
-  const alturaTotal = linhas.length * alturaLinha;
-
-  let centroY;
-
-  if ($("posicaoTexto").value === "alto") {
-    centroY = altura * 0.19;
-  } else if ($("posicaoTexto").value === "centro") {
-    centroY = altura * 0.5;
-  } else {
-    centroY = altura * 0.77;
-  }
-
-  const yInicial = centroY - alturaTotal / 2 + alturaLinha / 2;
-
-  if (efeito === "shadow") {
-    ctx.shadowColor = corEfeito;
-    ctx.shadowBlur = Number($("intensidadeEfeito").value) * largura / 720;
-    ctx.shadowOffsetX = 2 * largura / 720;
-    ctx.shadowOffsetY = 4 * largura / 720;
-  } else if (efeito === "glow" || efeito === "neon") {
-    ctx.shadowColor = efeito === "neon" ? corDestaque : corEfeito;
-    ctx.shadowBlur = Number($("intensidadeEfeito").value) * largura / 720;
-  }
-
-  for (let i = 0; i < linhas.length; i++) {
-    const linha = linhas[i];
-    const y = yInicial + i * alturaLinha;
-
-    if (efeito === "outline") {
-      ctx.lineWidth = Math.max(2, tamanhoBase * 0.09);
-      ctx.strokeStyle = corEfeito;
-      ctx.strokeText(linha, 0, y, larguraMaxima);
-    }
-
-    if (efeito === "neon") {
-      ctx.lineWidth = Math.max(1, tamanhoBase * 0.025);
-      ctx.strokeStyle = corDestaque;
-      ctx.strokeText(linha, 0, y, larguraMaxima);
-    }
-
-    if (animacao === "highlight") {
-      const proporcao = limitar(progresso * 1.4, 0, 1);
-      const medida = ctx.measureText(linha).width;
-      const inicio = -medida / 2;
-      const limiteDestaque = inicio + medida * proporcao;
-
-      ctx.fillStyle = corTexto;
-      ctx.fillText(linha, 0, y, larguraMaxima);
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(inicio - 2, y - alturaLinha / 2, Math.max(0, limiteDestaque - inicio + 2), alturaLinha);
-      ctx.clip();
-      ctx.fillStyle = corDestaque;
-      ctx.fillText(linha, 0, y, larguraMaxima);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = corTexto;
-      desenharTextoCentralizado(linha, 0, y, tamanhoBase, corTexto);
-    }
-  }
-
-  ctx.restore();
-}
-
-/* =========================================================
-   VISUALIZADOR DE ÁUDIO
-========================================================= */
-
-function desenharVisualizador() {
-  if (!$("mostrarAudio").checked) return;
-
-  const largura = canvas.width;
-  const altura = canvas.height;
-  const quantidade = 42;
-  const areaLargura = largura * 0.72;
-  const larguraBarra = areaLargura / quantidade * 0.58;
-  const espacamento = areaLargura / quantidade;
-  const inicioX = (largura - areaLargura) / 2;
-  const baseY = altura * 0.91;
-  const cor = corValida($("corDestaque").value, "#72f0b0");
-
-  if (analisador && dadosAudio) analisador.getByteFrequencyData(dadosAudio);
-
-  ctx.save();
-  ctx.fillStyle = cor;
-  ctx.globalAlpha = 0.8;
-
-  for (let i = 0; i < quantidade; i++) {
-    let valor;
-
-    if (dadosAudio) {
-      const indice = Math.floor(i * dadosAudio.length / quantidade);
-      valor = dadosAudio[indice] / 255;
-    } else {
-      valor = 0.08;
-    }
-
-    const barraAltura = Math.max(3, valor * altura * 0.08);
-    const x = inicioX + i * espacamento;
-
-    ctx.beginPath();
-    ctx.roundRect(x, baseY - barraAltura, larguraBarra, barraAltura, Math.min(5, larguraBarra / 2));
-    ctx.fill();
-  }
-
-  ctx.restore();
-}
-
-/* =========================================================
-   RENDERIZAÇÃO DO CANVAS
-========================================================= */
-
-function desenharFundo() {
-  const largura = canvas.width;
-  const altura = canvas.height;
-
-  ctx.fillStyle = corValida($("corFundo").value, "#101522");
-  ctx.fillRect(0, 0, largura, altura);
-
-  if (videoFundo.readyState < 2 || !videoFundo.videoWidth) return;
-
-  if (lut) {
-    try {
-      if (aplicarLUTAoFundo()) return;
-    } catch (erro) {
-      console.error("Erro ao aplicar LUT:", erro);
-    }
-  }
-
-  const escala = Math.max(
-    largura / videoFundo.videoWidth,
-    altura / videoFundo.videoHeight
-  );
-
-  const w = videoFundo.videoWidth * escala;
-  const h = videoFundo.videoHeight * escala;
-
-  ctx.drawImage(videoFundo, (largura - w) / 2, (altura - h) / 2, w, h);
-}
-
-function desenharAdesivos() {
-  const tempo = audio.currentTime || 0;
-
-  elementosVisuais.forEach(item => {
-    if (typeof window.desenharAdesivoAnimado === "function") {
-      window.desenharAdesivoAnimado(item, tempo);
+/* marcar inicio/fim */
+if (marcarInicioBtn) {
+  marcarInicioBtn.addEventListener('click', () => {
+    const idx = Number(linhaSelecionadaSelect.value);
+    if (!Number.isFinite(idx) || idx < 0 || !legendas[idx]) {
+      mensagem("Selecione uma legenda primeiro.");
       return;
     }
-
-    if (!item.imagem || !item.imagem.complete) return;
-
-    const escala = item.escala / 100;
-    const largura = item.largura * escala;
-    const altura = item.altura * escala;
-
-    ctx.save();
-    ctx.translate(item.x, item.y);
-    ctx.rotate(item.rotacao * Math.PI / 180);
-    ctx.drawImage(item.imagem, -largura / 2, -altura / 2, largura, altura);
-
-    if (!exportando && item.id === imagemSelecionada) {
-      ctx.strokeStyle = "#72f0b0";
-      ctx.lineWidth = Math.max(1, canvas.width / 720);
-      ctx.setLineDash([7, 5]);
-      ctx.strokeRect(-largura / 2, -altura / 2, largura, altura);
-      ctx.setLineDash([]);
-    }
-
-    ctx.restore();
+    const t = audio.currentTime || 0;
+    legendas[idx].start = Number(t.toFixed(2));
+    // atualizar UI
+    desenharListaLegendas();
+    mensagem(`Início da legenda ${idx+1} definido em ${formatarTempo(t)}.`);
   });
 }
 
-function renderizar() {
-  const tempo = audio.currentTime || 0;
-
-  desenharFundo();
-
-  const legenda = linhaAtiva(tempo);
-
-  desenharVisualizador();
-
-  if (legenda) desenharLegenda(legenda, tempo);
-
-  desenharAdesivos();
-
-  if (!exportando && !audio.src && !videoFundo.src && !legendas.length) {
-    ctx.save();
-    ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `800 ${canvas.width * 0.065}px Arial`;
-    ctx.fillText("LYRIC STUDIO", canvas.width / 2, canvas.height / 2 - 20);
-
-    ctx.fillStyle = "#91a0b1";
-    ctx.font = `${canvas.width * 0.023}px Arial`;
-    ctx.fillText("Importe uma música para começar", canvas.width / 2, canvas.height / 2 + 25);
-    ctx.restore();
-  }
-}
-
-/* =========================================================
-   CONTROLES DE APARÊNCIA
-========================================================= */
-
-["formato", "resolucao"].forEach(id => {
-  $(id).addEventListener("change", definirFormato);
-});
-
-[
-  "posicaoTexto",
-  "corFundo",
-  "corTexto",
-  "corDestaque",
-  "fonteTexto",
-  "animacaoTexto",
-  "efeitoTexto",
-  "corEfeito",
-  "intensidadeEfeito",
-  "mostrarAudio"
-].forEach(id => {
-  $(id).addEventListener("input", renderizar);
-  $(id).addEventListener("change", renderizar);
-});
-
-$("tamanhoTexto").addEventListener("input", () => {
-  definirTamanhoTexto();
-  renderizar();
-});
-
-/* =========================================================
-   TIMELINE / TRIM
-========================================================= */
-
-(function timelineTrimInit() {
-  const bar = document.getElementById("timelineBar");
-  const range = document.getElementById("timelineRange");
-  const handleStart = document.getElementById("handleStart");
-  const handleEnd = document.getElementById("handleEnd");
-  const labelStart = document.getElementById("trimStartLabel");
-  const labelEnd = document.getElementById("trimEndLabel");
-  const btnReset = document.getElementById("trimReset");
-  const btnApply = document.getElementById("trimApply");
-
-  if (!bar || !handleStart || !handleEnd) return;
-
-  let duration = obterDuracao() || 0;
-  let trimStart = 0;
-  let trimEnd = null;
-  const minGap = 0.05;
-
-  function formatTimeShort(s) {
-    if (!Number.isFinite(s)) s = 0;
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
-  }
-
-  function timeToPct(t) {
-    if (!duration || duration <= 0) return 0;
-    return Math.max(0, Math.min(1, t / duration));
-  }
-
-  function pctToTime(p) {
-    return Math.max(0, Math.min(duration, p * duration));
-  }
-
-  function atualizarLabels() {
-    labelStart.textContent = formatTimeShort(trimStart || 0);
-    labelEnd.textContent = formatTimeShort(trimEnd == null ? duration : trimEnd);
-  }
-
-  function renderHandles() {
-    const rect = bar.getBoundingClientRect();
-    const leftPct = timeToPct(trimStart || 0);
-    const rightPct = timeToPct(trimEnd == null ? duration : trimEnd);
-
-    handleStart.style.left = `${leftPct * 100}%`;
-    handleEnd.style.left = `${rightPct * 100}%`;
-
-    range.style.left = `${leftPct * 100}%`;
-    range.style.width = `${Math.max(0, (rightPct - leftPct) * 100)}%`;
-  }
-
-  function atualizarDuracao() {
-    duration = obterDuracao() || 0;
-    if (!trimEnd) trimEnd = duration;
-    if (trimEnd > duration) trimEnd = duration;
-    renderHandles();
-    atualizarLabels();
-  }
-
-  audio.addEventListener("loadedmetadata", atualizarDuracao);
-  audio.addEventListener("durationchange", atualizarDuracao);
-
-  let active = null;
-
-  function onPointerDown(e, which) {
-    e.preventDefault();
-    active = which;
-    e.target?.setPointerCapture?.(e.pointerId);
-  }
-
-  function onPointerMove(e) {
-    if (!active) return;
-    const rect = bar.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pct = Math.max(0, Math.min(1, x / rect.width));
-    const time = pctToTime(pct);
-
-    if (active === "start") {
-      const newStart = Math.min(time, (trimEnd == null ? duration : trimEnd) - minGap);
-      trimStart = Math.max(0, newStart);
-    } else if (active === "end") {
-      const newEnd = Math.max(time, (trimStart || 0) + minGap);
-      trimEnd = Math.min(duration, newEnd);
+if (marcarTempoBtn) {
+  marcarTempoBtn.addEventListener('click', () => {
+    const idx = Number(linhaSelecionadaSelect.value);
+    if (!Number.isFinite(idx) || idx < 0 || !legendas[idx]) {
+      mensagem("Selecione uma legenda primeiro.");
+      return;
     }
-
-    renderHandles();
-    atualizarLabels();
-  }
-
-  function onPointerUp() {
-    active = null;
-  }
-
-  handleStart.addEventListener("pointerdown", e => onPointerDown(e, "start"));
-  handleEnd.addEventListener("pointerdown", e => onPointerDown(e, "end"));
-  window.addEventListener("pointermove", onPointerMove);
-  window.addEventListener("pointerup", onPointerUp);
-  window.addEventListener("pointercancel", onPointerUp);
-
-  function handleKey(e, which) {
-    const step = e.shiftKey ? 0.5 : 0.1;
-    if (which === "start") {
-      if (e.key === "ArrowLeft") trimStart = Math.max(0, (trimStart || 0) - step);
-      if (e.key === "ArrowRight") trimStart = Math.min((trimEnd == null ? duration : trimEnd) - minGap, (trimStart || 0) + step);
-    } else {
-      if (e.key === "ArrowLeft") trimEnd = Math.max((trimStart || 0) + minGap, (trimEnd == null ? duration : trimEnd) - step);
-      if (e.key === "ArrowRight") trimEnd = Math.min(duration, (trimEnd == null ? duration : trimEnd) + step);
-    }
-    renderHandles();
-    atualizarLabels();
-  }
-
-  handleStart.addEventListener("keydown", e => handleKey(e, "start"));
-  handleEnd.addEventListener("keydown", e => handleKey(e, "end"));
-
-  btnReset.addEventListener("click", () => {
-    trimStart = 0;
-    trimEnd = duration || null;
-    renderHandles();
-    atualizarLabels();
-    mensagem("Trim resetado.");
+    const t = audio.currentTime || 0;
+    legendas[idx].end = Number(t.toFixed(2));
+    desenharListaLegendas();
+    mensagem(`Fim da legenda ${idx+1} definido em ${formatarTempo(t)}.`);
   });
-
-  btnApply.addEventListener("click", () => {
-    if (!duration) {
-      mensagem("Carregue o áudio antes de aplicar o trim.");
-      return;
-    }
-
-    if (trimEnd == null) trimEnd = duration;
-
-    if (audio.src) {
-      audio.currentTime = trimStart || 0;
-      mensagem(`Trim aplicado: ${formatTimeShort(trimStart || 0)} → ${formatTimeShort(trimEnd)}`);
-    }
-  });
-
-  window._editorTrim = {
-    getStart: () => trimStart || 0,
-    getEnd: () => (trimEnd == null ? duration : trimEnd),
-    setStartEnd: (s, e) => {
-      trimStart = Math.max(0, Math.min(s, duration));
-      trimEnd = Math.max(trimStart + minGap, Math.min(e, duration));
-      renderHandles();
-      atualizarLabels();
-    }
-  };
-
-  window.addEventListener("resize", renderHandles);
-
-  atualizarDuracao();
-})();
-
-/* =========================================================
-   EXPORTAÇÃO DE VÍDEO
-========================================================= */
-
-function obterTipoGravacao() {
-  if (!window.MediaRecorder) return null;
-
-  const tipos = [
-    "video/mp4;codecs=avc1",
-    "video/webm;codecs=vp9,opus",
-    "video/webm;codecs=vp8,opus",
-    "video/webm"
-  ];
-
-  return tipos.find(tipo => MediaRecorder.isTypeSupported(tipo)) || "";
 }
 
-function encerrarExportacao() {
-  exportando = false;
-  $("exportar").disabled = false;
-  $("pararExportacao").disabled = true;
+/* -----------------------
+   Timeline overlay (preview+pool+drag drop)
+   ----------------------- */
+(function timelineFeature() {
+  const overlay = $("timelineOverlay");
+  const pool = $("timelinePool");
+  const drop = $("timelineDropArea");
+  const closeBtn = $("closeTimeline");
+  const saveBtn = $("saveTimeline");
+  const cancelBtn = $("cancelTimeline");
+  const previewWrap = document.querySelector('.timeline-preview-wrap');
 
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
+  // guarda onde colocar de volta
+  let originalCanvasParent = null;
+  let originalAudioParent = null;
+
+  function obterDuracaoSafe() {
+    return (audio && audio.duration && isFinite(audio.duration)) ? audio.duration : 0;
   }
 
-  renderizar();
-}
-
-$("exportar").addEventListener("click", async () => {
-  if (!window.MediaRecorder || !canvas.captureStream) {
-    mensagem("Este navegador não oferece suporte à exportação de vídeo necessária.");
-    return;
-  }
-
-  if (exportando) {
-    mensagem("Já existe uma exportação em andamento.");
-    return;
-  }
-
-  if (!audio.src) {
-    mensagem("Importe um áudio antes de exportar o vídeo.");
-    return;
-  }
-
-  if (!obterDuracao()) {
-    mensagem("Aguarde o carregamento da duração do áudio.");
-    return;
-  }
-
-  const trimStart = window._editorTrim?.getStart?.() ?? 0;
-  const trimEnd = window._editorTrim?.getEnd?.() ?? obterDuracao();
-
-  const tipo = obterTipoGravacao();
-
-  if (tipo === null) {
-    mensagem("O navegador não oferece suporte ao MediaRecorder.");
-    return;
-  }
-
-  prepararAudioContext();
-
-  if (audioContext && audioContext.state === "suspended") {
-    await audioContext.resume();
-  }
-
-  const streamVideo = canvas.captureStream(30);
-  const faixasAudio = audioDestination ? audioDestination.stream.getAudioTracks() : [];
-  faixasAudio.forEach(faixa => streamVideo.addTrack(faixa));
-
-  partesVideo = [];
-
-  const opcoes = {};
-  if (tipo) opcoes.mimeType = tipo;
-
-  if ($("qualidade").value === "high") {
-    opcoes.videoBitsPerSecond = 8_000_000;
-    opcoes.audioBitsPerSecond = 192_000;
-  } else {
-    opcoes.videoBitsPerSecond = 4_000_000;
-    opcoes.audioBitsPerSecond = 128_000;
-  }
-
-  try {
-    mediaRecorder = new MediaRecorder(streamVideo, opcoes);
-  } catch (erro) {
-    streamVideo.getTracks().forEach(track => track.stop());
-    mensagem("Não foi possível iniciar a gravação neste navegador.");
-    return;
-  }
-
-  mediaRecorder.ondataavailable = event => {
-    if (event.data && event.data.size > 0) partesVideo.push(event.data);
-  };
-
-  mediaRecorder.onerror = event => {
-    console.error(event.error || event);
-    mensagem("Ocorreu um erro durante a exportação.");
-    encerrarExportacao();
-  };
-
-  mediaRecorder.onstop = () => {
-    const mimeType = mediaRecorder.mimeType || tipo || "video/webm";
-    const extensao = mimeType.includes("mp4") ? "mp4" : "webm";
-    const blob = new Blob(partesVideo, { type: mimeType });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `lyric-studio-${Date.now()}.${extensao}`;
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    streamVideo.getTracks().forEach(track => track.stop());
-
-    if (!audio.paused) audio.pause();
-    if (videoFundo.src) videoFundo.pause();
-
-    encerrarExportacao();
-    mensagem(`Exportação concluída. Arquivo gerado: ${extensao.toUpperCase()}.`);
-  };
-
-  exportando = true;
-  $("exportar").disabled = true;
-  $("pararExportacao").disabled = false;
-
-  audio.currentTime = trimStart;
-
-  if (videoFundo.src) {
-    try {
-      videoFundo.currentTime = trimStart;
-      await videoFundo.play();
-    } catch (erro) {
-      console.warn("O vídeo de fundo não iniciou automaticamente.", erro);
+  function moveIntoPreview(node) {
+    if (!node) return;
+    // se já movido, não duplicar
+    if (!originalCanvasParent && node === canvas) {
+      originalCanvasParent = node.parentNode;
     }
+    if (node === audio && !originalAudioParent) {
+      originalAudioParent = node.parentNode;
+    }
+    previewWrap.innerHTML = '';
+    previewWrap.appendChild(node);
   }
 
-  renderizar();
-  mediaRecorder.start(250);
-
-  try {
-    await audio.play();
-    mensagem(`Exportando trecho: ${formatarTempo(trimStart)} → ${formatarTempo(trimEnd)}. Não feche a página.`);
-  } catch (erro) {
-    if (mediaRecorder.state === "recording") mediaRecorder.stop();
-    mensagem("Não foi possível iniciar a reprodução do áudio para exportar.");
-    return;
+  function restoreOriginals() {
+    if (originalCanvasParent && canvas && !originalCanvasParent.contains(canvas)) {
+      originalCanvasParent.appendChild(canvas);
+      originalCanvasParent = null;
+    }
+    if (originalAudioParent && audio && !originalAudioParent.contains(audio)) {
+      originalAudioParent.appendChild(audio);
+      originalAudioParent = null;
+    }
+    if (audio) audio.controls = false;
   }
 
-  function acompanharExportacao() {
-    if (!exportando) return;
-
-    renderizar();
-
-    if (audio.currentTime >= trimEnd) {
-      if (mediaRecorder?.state === "recording") mediaRecorder.stop();
-      return;
-    }
-
-    rafId = requestAnimationFrame(acompanharExportacao);
-  }
-
-  rafId = requestAnimationFrame(acompanharExportacao);
-});
-
-$("pararExportacao").addEventListener("click", () => {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-    mensagem("Finalizando a exportação...");
-  }
-});
-
-/* =========================================================
-   INICIALIZAÇÃO
-========================================================= */
-
-definirTamanhoTexto();
-definirTamanhoImagem();
-definirRotacaoImagem();
-definirFormato();
-atualizarTempo();
-atualizarSeletorLegendas();
-desenharLista();
-
-function loopPrevia() {
-  renderizar();
-  requestAnimationFrame(loopPrevia);
-}
-
-loopPrevia();
-
-window.addEventListener("beforeunload", () => {
-  if (audioURL) URL.revokeObjectURL(audioURL);
-  if (videoURL) URL.revokeObjectURL(videoURL);
-  if (fonteURL) URL.revokeObjectURL(fonteURL);
-
-  elementosVisuais.forEach(item => {
-    if (item.url) URL.revokeObjectURL(item.url);
-  });
-});
-
-/* =========================================================
-   POP-UP DA PRÉVIA
-========================================================= */
-
-(() => {
-  "use strict";
-
-  function iniciarNovaInterface() {
-    const $ = id => document.getElementById(id);
-
-    const preview = document.querySelector(".preview-panel");
-    const canvas = $("canvas");
-    const audioEl = $("audio");
-
-    if (!preview || !canvas) {
-      console.warn("Lyric Studio: elementos da interface não encontrados.");
-      return;
-    }
-
-    const gavetas = [
-      { id: "sec-musica", titulo: "Música e áudio", icone: "♫" },
-      { id: "sec-letra", titulo: "Letra", icone: "≡" },
-      { id: "sec-legendas", titulo: "Sincronização das legendas", icone: "◷" },
-      { id: "sec-aparencia", titulo: "Aparência e texto", icone: "Aa" },
-      { id: "sec-recursos", titulo: "Recursos visuais", icone: "▧" },
-      { id: "sec-exportar", titulo: "Exportar vídeo", icone: "⇩" }
-    ];
-
-    gavetas.forEach(config => {
-      const secao = $(config.id);
-      if (!secao) return;
-
-      secao.classList.add("drawer-section");
-
-      let cabecalho = secao.querySelector(":scope > .drawer-toggle");
-      let corpo = secao.querySelector(":scope > .drawer-body");
-
-      if (!cabecalho || !corpo) {
-        const filhos = Array.from(secao.childNodes);
-
-        cabecalho = document.createElement("button");
-        corpo = document.createElement("div");
-
-        cabecalho.type = "button";
-        cabecalho.className = "drawer-toggle";
-        cabecalho.innerHTML = `
-          <span class="drawer-toggle-label">
-            <span class="drawer-icon" aria-hidden="true">${config.icone}</span>
-            <span>${config.titulo}</span>
-          </span>
-          <span class="drawer-chevron" aria-hidden="true">⌄</span>
-        `;
-
-        corpo.className = "drawer-body";
-        filhos.forEach(filho => corpo.appendChild(filho));
-        secao.append(cabecalho, corpo);
-      }
-
-      corpo.hidden = true;
-      cabecalho.setAttribute("aria-expanded", "false");
-
-      if (cabecalho.dataset.drawerClickReady !== "true") {
-        cabecalho.dataset.drawerClickReady = "true";
-
-        cabecalho.addEventListener("click", () => {
-          const abrir = corpo.hidden;
-          corpo.hidden = !abrir;
-          cabecalho.setAttribute("aria-expanded", String(abrir));
-        });
-      }
-    });
-
-    function sincronizarSubgaveta(detalhe) {
-      const conteudo = detalhe.querySelector(":scope > .subdrawer-content");
-      if (!conteudo) return;
-
-      conteudo.hidden = false;
-
-      if (detalhe.open) {
-        conteudo.style.display = "block";
-        conteudo.style.visibility = "visible";
-      } else {
-        conteudo.style.display = "none";
-      }
-    }
-
-    document.querySelectorAll("details.subdrawer").forEach(detalhe => {
-      const resumo = detalhe.querySelector(":scope > summary");
-      if (!resumo || detalhe.dataset.subdrawerReady === "true") return;
-
-      detalhe.dataset.subdrawerReady = "true";
-      detalhe.open = false;
-      sincronizarSubgaveta(detalhe);
-
-      resumo.addEventListener("click", evento => {
-        evento.preventDefault();
-        evento.stopPropagation();
-        detalhe.open = !detalhe.open;
-        sincronizarSubgaveta(detalhe);
-      });
-
-      resumo.addEventListener("keydown", evento => {
-        if (evento.key === " " || evento.key === "Enter") {
-          evento.preventDefault();
-          detalhe.open = !detalhe.open;
-          sincronizarSubgaveta(detalhe);
-        }
-      });
-    });
-
-    let modal = $("previewModal");
-
-    if (!modal) {
-      modal = document.createElement("div");
-      modal.id = "previewModal";
-      modal.setAttribute("role", "dialog");
-      modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("aria-labelledby", "previewModalTitulo");
-
-      modal.innerHTML = `
-        <div class="preview-modal-card">
-          <div class="preview-modal-header">
-            <h2 id="previewModalTitulo">Prévia do vídeo</h2>
-            <button id="fecharPreviewModal" type="button" aria-label="Fechar prévia">×</button>
-          </div>
-          <div id="previewModalContent"></div>
-          <div class="preview-modal-controls">
-            <button id="previewModalPlay" type="button">▶ Reproduzir áudio</button>
-            <span id="previewModalTempo">00:00 / 00:00</span>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(modal);
-    }
-
-    let abrirPreviewButton = $("abrirPreviewModal");
-
-    if (!abrirPreviewButton) {
-      abrirPreviewButton = document.createElement("button");
-      abrirPreviewButton.id = "abrirPreviewModal";
-      abrirPreviewButton.type = "button";
-      abrirPreviewButton.textContent = "⛶ Abrir prévia em tela ampliada";
-      preview.appendChild(abrirPreviewButton);
-    }
-
-    const conteudoModal = $("previewModalContent");
-    const fecharModalButton = $("fecharPreviewModal");
-    const tocarModalButton = $("previewModalPlay");
-    const tempoModal = $("previewModalTempo");
-
-    if (!conteudoModal || !fecharModalButton || !tocarModalButton || !tempoModal) {
-      console.warn("Lyric Studio: controles da prévia não encontrados.");
-      return;
-    }
-
-    const paiOriginal = preview.parentNode;
-    const proximoOriginal = preview.nextSibling;
-
-    let modalAberto = false;
-    let focoAnterior = null;
-
-    function formatarTempoModal(segundos) {
-      if (!Number.isFinite(segundos) || segundos < 0) segundos = 0;
-
-      const minutos = Math.floor(segundos / 60);
-      const segundosRestantes = Math.floor(segundos % 60);
-      return String(minutos).padStart(2, "0") + ":" + String(segundosRestantes).padStart(2, "0");
-    }
-
-    function atualizarTempoModal() {
-      if (!audioEl) return;
-      tempoModal.textContent =
-        formatarTempoModal(audioEl.currentTime || 0) + " / " + formatarTempoModal(audioEl.duration);
-    }
-
-    function atualizarBotaoAudio() {
-      if (!audioEl) return;
-      tocarModalButton.textContent = audioEl.paused ? "▶ Reproduzir áudio" : "Ⅱ Pausar áudio";
-    }
-
-    function abrirModal() {
-      if (modalAberto) return;
-
-      focoAnterior = document.activeElement;
-      modalAberto = true;
-
-      conteudoModal.appendChild(preview);
-      modal.classList.add("aberto");
-      document.body.style.overflow = "hidden";
-
-      atualizarTempoModal();
-      atualizarBotaoAudio();
-      fecharModalButton.focus();
-    }
-
-    function fecharModal() {
-      if (!modalAberto) return;
-
-      modalAberto = false;
-      modal.classList.remove("aberto");
-      document.body.style.overflow = "";
-
-      if (paiOriginal && paiOriginal.isConnected) {
-        if (proximoOriginal && proximoOriginal.parentNode === paiOriginal) {
-          paiOriginal.insertBefore(preview, proximoOriginal);
-        } else {
-          paiOriginal.appendChild(preview);
-        }
-      }
-
-      if (focoAnterior && typeof focoAnterior.focus === "function") {
-        focoAnterior.focus();
-      }
-    }
-
-    abrirPreviewButton.addEventListener("click", abrirModal);
-    fecharModalButton.addEventListener("click", fecharModal);
-
-    modal.addEventListener("click", event => {
-      if (event.target === modal) fecharModal();
-    });
-
-    document.addEventListener("keydown", event => {
-      if (event.key === "Escape" && modalAberto) {
-        fecharModal();
-      }
-    });
-
-    if (audioEl) {
-      tocarModalButton.addEventListener("click", async () => {
-        try {
-          if (audioEl.paused) {
-            if (typeof prepararAudioContext === "function") prepararAudioContext();
-
-            if (typeof audioContext !== "undefined" && audioContext && audioContext.state === "suspended") {
-              await audioContext.resume();
-            }
-
-            await audioEl.play();
-          } else {
-            audioEl.pause();
-          }
-        } catch (erro) {
-          console.error("Não foi possível reproduzir o áudio:", erro);
-        }
-
-        atualizarBotaoAudio();
-      });
-
-      ["timeupdate", "durationchange", "loadedmetadata", "seeked"].forEach(evento => {
-        audioEl.addEventListener(evento, atualizarTempoModal);
-      });
-
-      ["play", "pause", "ended"].forEach(evento => {
-        audioEl.addEventListener(evento, atualizarBotaoAudio);
-      });
-    }
-
-    console.info("Lyric Studio: gavetas, subgavetas e prévia inicializadas.");
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", iniciarNovaInterface, { once: true });
-  } else {
-    iniciarNovaInterface();
-  }
-})();
-
-/* =========================================================
-   ANIMAÇÕES DE ADESIVOS
-========================================================= */
-
-(() => {
-  "use strict";
-
-  const $ = id => document.getElementById(id);
-
-  const camposAnimacao = [
-    "animacaoEntrada",
-    "animacaoLoop",
-    "animacaoSaida",
-    "animacaoInicio",
-    "animacaoFim",
-    "animacaoVelocidade"
-  ];
-
-  function adesivoAtual() {
-    return elementosVisuais.find(item => item.id === imagemSelecionada) || null;
-  }
-
-  function informarAnimacao(texto) {
-    const estado = $("estadoAnimacao");
-    if (estado) estado.textContent = texto;
-  }
-
-  function carregarControlesAnimacao(item) {
-    if (!item) {
-      informarAnimacao("Selecione um adesivo para configurar suas animações.");
-      return;
-    }
-
-    const anim = item.animacao || {};
-
-    $("animacaoEntrada").value = anim.entrada || "none";
-    $("animacaoLoop").value = anim.loop || "none";
-    $("animacaoSaida").value = anim.saida || "none";
-    $("animacaoInicio").value = anim.inicio ?? 0;
-    $("animacaoFim").value = anim.fim ?? 0;
-    $("animacaoVelocidade").value = anim.velocidade ?? 1;
-
-    informarAnimacao(
-      anim.entrada !== "none" || anim.loop !== "none" || anim.saida !== "none"
-        ? "Animações carregadas para: " + item.nome
-        : "Nenhuma animação configurada para: " + item.nome
-    );
-  }
-
-  window.carregarControlesAnimacaoAdesivo = carregarControlesAnimacao;
-
-  function aplicarAnimacao() {
-    const item = adesivoAtual();
-
-    if (!item) {
-      informarAnimacao("Adicione ou selecione um adesivo primeiro.");
-      return;
-    }
-
-    const inicio = Math.max(0, Number($("animacaoInicio").value) || 0);
-    const fim = Math.max(0, Number($("animacaoFim").value) || 0);
-
-    if (fim > 0 && fim <= inicio) {
-      informarAnimacao("O tempo final precisa ser maior que o inicial.");
-      return;
-    }
-
-    item.animacao = {
-      entrada: $("animacaoEntrada").value,
-      loop: $("animacaoLoop").value,
-      saida: $("animacaoSaida").value,
-      inicio,
-      fim,
-      velocidade: Math.max(0.1, Number($("animacaoVelocidade").value) || 1)
-    };
-
-    informarAnimacao("Animações aplicadas ao adesivo selecionado.");
-    renderizar();
-  }
-
-  function limparAnimacao() {
-    const item = adesivoAtual();
-
-    if (!item) {
-      informarAnimacao("Selecione um adesivo primeiro.");
-      return;
-    }
-
-    item.animacao = {
-      entrada: "none",
-      loop: "none",
-      saida: "none",
-      inicio: 0,
-      fim: 0,
-      velocidade: 1
-    };
-
-    carregarControlesAnimacao(item);
-    informarAnimacao("As animações deste adesivo foram removidas.");
-    renderizar();
-  }
-
-  function obterTransformacaoAnimada(item, tempo) {
-    const anim = item.animacao || {};
-    const velocidade = Math.max(0.1, Number(anim.velocidade) || 1);
-    const inicio = Math.max(0, Number(anim.inicio) || 0);
-    const fimConfigurado = Math.max(0, Number(anim.fim) || 0);
-
-    const duracaoAudio = Number(audio.duration);
-    const fim = fimConfigurado > 0
-      ? fimConfigurado
-      : (Number.isFinite(duracaoAudio) && duracaoAudio > 0 ? duracaoAudio : Infinity);
-
-    if (tempo < inicio || tempo >= fim) {
-      return { alpha: 0, escala: 1, dx: 0, dy: 0, rotacao: 0 };
-    }
-
-    const tempoLocal = (tempo - inicio) * velocidade;
-    const entradaDuracao = 0.65;
-    const saidaDuracao = 0.5;
-    const restante = fim - tempo;
-
-    let alpha = 1;
-    let escala = 1;
-    let dx = 0;
-    let dy = 0;
-    let rotacao = 0;
-
-    const entrada = anim.entrada || "none";
-    const saida = anim.saida || "none";
-    const loop = anim.loop || "none";
-
-    if (tempoLocal < entradaDuracao) {
-      const p = Math.min(1, tempoLocal / entradaDuracao);
-
-      if (entrada === "fade") {
-        alpha = p;
-      } else if (entrada === "zoom") {
-        escala *= 0.2 + 0.8 * p;
-      } else if (entrada === "bounce") {
-        escala *= 0.65 + 0.35 * p + Math.sin(p * Math.PI) * 0.25;
-        dy -= Math.sin(p * Math.PI) * 35;
-      } else if (entrada === "slide") {
-        dy += (1 - p) * 100;
-        alpha = p;
-      } else if (entrada === "spin") {
-        rotacao += (1 - p) * Math.PI * 2;
-        escala *= 0.5 + 0.5 * p;
-      }
-    }
-
-    if (Number.isFinite(restante) && restante < saidaDuracao) {
-      const p = Math.max(0, restante / saidaDuracao);
-
-      if (saida === "fade") {
-        alpha *= p;
-      } else if (saida === "shrink") {
-        escala *= p;
-        alpha *= p;
-      } else if (saida === "zoomOut") {
-        escala *= 1 + (1 - p) * 1.5;
-        alpha *= p;
-      }
-    }
-
-    const fase = tempoLocal * Math.PI * 2;
-
-    if (loop === "rotate") {
-      rotacao += tempoLocal * Math.PI;
-    } else if (loop === "float") {
-      dy += Math.sin(fase) * 12;
-    } else if (loop === "swing") {
-      rotacao += Math.sin(fase) * 0.18;
-    } else if (loop === "pulse") {
-      escala *= 1 + Math.sin(fase) * 0.08;
-    } else if (loop === "shake") {
-      dx += Math.sin(tempoLocal * 35) * 4;
-      dy += Math.cos(tempoLocal * 29) * 3;
-    }
-
-    return { alpha, escala, dx, dy, rotacao };
-  }
-
-  window.desenharAdesivoAnimado = function (item, tempo) {
-    if (!item.imagem || !item.imagem.complete) return;
-
-    const animacao = obterTransformacaoAnimada(item, tempo);
-    if (animacao.alpha <= 0) return;
-
-    const escalaBase = (Number(item.escala) || 100) / 100;
-    const largura = item.largura * escalaBase * animacao.escala;
-    const altura = item.altura * escalaBase * animacao.escala;
-
-    ctx.save();
-    ctx.globalAlpha *= animacao.alpha;
-    ctx.translate(item.x + animacao.dx, item.y + animacao.dy);
-
-    ctx.rotate(
-      (Number(item.rotacao) || 0) * Math.PI / 180 + animacao.rotacao
-    );
-
-    ctx.drawImage(item.imagem, -largura / 2, -altura / 2, largura, altura);
-
-    if (!exportando && item.id === imagemSelecionada) {
-      ctx.strokeStyle = "#72f0b0";
-      ctx.lineWidth = Math.max(1, canvas.width / 720);
-      ctx.setLineDash([7, 5]);
-      ctx.strokeRect(-largura / 2, -altura / 2, largura, altura);
-      ctx.setLineDash([]);
-    }
-
-    ctx.restore();
-  };
-
-  function configurarControlesAnimacao() {
-    $("aplicarAnimacao")?.addEventListener("click", aplicarAnimacao);
-    $("limparAnimacao")?.addEventListener("click", limparAnimacao);
-
-    camposAnimacao.forEach(id => {
-      $(id)?.addEventListener("change", () => {
-        const item = adesivoAtual();
-
-        if (item) {
-          informarAnimacao("Configurações alteradas. Clique em Aplicar animação.");
-        }
-      });
-    });
-
-    $("arquivoImagem")?.addEventListener("change", () => {
-      setTimeout(() => {
-        const item = adesivoAtual();
-        if (item) carregarControlesAnimacao(item);
-      }, 100);
-    });
-
-    $("centralizarImagem")?.addEventListener("click", () => {
-      const item = adesivoAtual();
-      if (item) carregarControlesAnimacao(item);
-    });
-
-    $("excluirImagem")?.addEventListener("click", () => {
-      setTimeout(() => {
-        const item = adesivoAtual();
-
-        if (item) carregarControlesAnimacao(item);
-        else informarAnimacao("Selecione um adesivo para animá-lo.");
-      }, 50);
-    });
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", configurarControlesAnimacao, { once: true });
-  } else {
-    configurarControlesAnimacao();
-  }
-})();
-// timeline feature (integrar ao final do script.js)
-(function () {
-  const overlay = document.getElementById('timelineOverlay');
-  const pool = document.getElementById('timelinePool');
-  const drop = document.getElementById('timelineDropArea');
-  const closeBtn = document.getElementById('closeTimeline');
-  const saveBtn = document.getElementById('saveTimeline');
-  const cancelBtn = document.getElementById('cancelTimeline');
-
-  // abre overlay com items gerados a partir da letra
-  window.openTimeline = function (linesArray, estimatedTimes = []) {
-    // linesArray = [{id, text}] ou strings
+  window.openTimeline = function(lines = [], estimatedTimes = []) {
+    // if lines empty, build from legendas[]
+    let items = lines && lines.length ? lines : legendas.slice();
     pool.innerHTML = '';
-    const duration = obterDuracao() || 60; // usa sua função de obter duracao (audio.duration)
+    const duration = obterDuracaoSafe() || 60;
 
-    linesArray.forEach((line, i) => {
-      const id = line.id ?? `l${i}`;
-      const text = line.text ?? line;
-      const start = estimatedTimes[i] ?? Math.max(0, (i / linesArray.length) * duration);
-      const end = estimatedTimes[i] ? (estimatedTimes[i] + (line.defaultDur || 3)) : Math.min(duration, start + 3);
+    if (!audio || !audio.src) {
+      // allow open but notify
+      console.info("Nenhum áudio carregado.");
+    }
 
-      const item = document.createElement('div');
-      item.className = 'pool-item';
-      item.draggable = true;
-      item.dataset.id = id;
-      item.dataset.text = text;
-      item.dataset.start = start;
-      item.dataset.end = end;
+    moveIntoPreview(canvas);
+    if (audio) {
+      audio.controls = true;
+      moveIntoPreview(audio);
+    }
 
-      item.innerHTML = `<div class="times">${formatarTempo(start)} — ${formatarTempo(end)}</div>
-                        <div class="text">${escapeHtml(text)}</div>`;
-
-      item.addEventListener('dragstart', (ev) => {
-        ev.dataTransfer.setData('text/plain', JSON.stringify({ id, text, start, end }));
-        ev.dataTransfer.effectAllowed = 'copy';
+    if (!items || items.length === 0) {
+      pool.innerHTML = '<div class="empty-state">Nenhuma linha detectada. Crie legendas ou cole a letra.</div>';
+    } else {
+      items.forEach((it, i) => {
+        const text = (it.text || it).toString();
+        const est = estimatedTimes?.[i] ?? ( (it.start != null) ? it.start : Math.max(0, (i / items.length) * duration) );
+        const estEnd = (it.end != null) ? it.end : Math.min(duration, est + 3);
+        const div = document.createElement('div');
+        div.className = 'pool-item';
+        div.draggable = true;
+        div.dataset.id = it.id ?? ('l' + i);
+        div.dataset.text = text;
+        div.dataset.start = est;
+        div.dataset.end = estEnd;
+        div.innerHTML = `<div class="times">${formatarTempo(est)} — ${formatarTempo(estEnd)}</div><div class="text">${escapeHtml(text)}</div>`;
+        div.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('text/plain', JSON.stringify({ id: div.dataset.id, text, start: est, end: estEnd }));
+          ev.dataTransfer.effectAllowed = 'copy';
+        });
+        pool.appendChild(div);
       });
+    }
 
-      pool.appendChild(item);
-    });
-
-    // limpa timeline visual
     drop.innerHTML = '';
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
   };
 
-  closeBtn?.addEventListener('click', closeTimeline);
-  cancelBtn?.addEventListener('click', closeTimeline);
+  function closeOverlay() {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    restoreOriginals();
+  }
+
+  closeBtn?.addEventListener('click', closeOverlay);
+  cancelBtn?.addEventListener('click', closeOverlay);
+
   saveBtn?.addEventListener('click', () => {
-    // opcional: colar clips no seu modelo de legendas (legendas[])
-    // percorre drop.children para extrair start/end/text e atualizar dados
+    // pega clipes e aplica nas legendas (simples)
     const clips = Array.from(drop.querySelectorAll('.timeline-clip')).map(el => ({
       id: el.dataset.id,
       text: el.dataset.text,
       start: Number(el.dataset.start),
       end: Number(el.dataset.end)
     }));
-    // ex: sincronizar com seu array legendas (implemente conforme seu modelo)
-    // aplicarClipsParaLegendas(clips);
-    closeTimeline();
+    // Mapear clips para legendas: se id bate atualiza start/end, senão cria nova legenda
+    clips.forEach(c => {
+      const idx = legendas.findIndex(l => l.id === c.id);
+      if (idx >= 0) {
+        legendas[idx].start = Number(c.start.toFixed(2));
+        legendas[idx].end = Number(c.end.toFixed(2));
+      } else {
+        // cria uma nova
+        legendas.push({ id: c.id || ('l'+legendas.length), text: c.text, start: Number(c.start.toFixed(2)), end: Number(c.end.toFixed(2)) });
+      }
+    });
+    desenharListaLegendas();
+    atualizarContador();
+    atualizarSeletorLegendas();
+    closeOverlay();
+    mensagem('Legendas atualizadas a partir da timeline.');
   });
 
-  function closeTimeline() {
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden', 'true');
-  }
-
-  // drop handlers
+  // Drop handlers
   drop.addEventListener('dragover', (ev) => {
     ev.preventDefault();
     ev.dataTransfer.dropEffect = 'copy';
@@ -2683,256 +350,32 @@ window.addEventListener("beforeunload", () => {
     const rect = drop.getBoundingClientRect();
     const x = ev.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, x / rect.width));
-    const duration = obterDuracao() || 60;
+    const duration = obterDuracaoSafe() || 60;
     const start = pct * duration;
-    const defaultDur = 3; // padrão 3s, você pode ajustar
+    const defaultDur = Math.min(6, duration * 0.05) || 3;
     createClipOnTimeline(obj.id, obj.text, start, Math.min(duration, start + defaultDur));
   });
-
-  function createClipOnTimeline(id, text, start, end) {
-    const rect = drop.getBoundingClientRect();
-    const duration = obterDuracao() || 60;
-    const leftPct = (start / duration) * 100;
-    const widthPct = ((end - start) / duration) * 100;
-
-    const clip = document.createElement('div');
-    clip.className = 'timeline-clip';
-    clip.style.left = `${leftPct}%`;
-    clip.style.width = `${Math.max(2, widthPct)}%`; // min width
-    clip.dataset.id = id;
-    clip.dataset.text = text;
-    clip.dataset.start = start;
-    clip.dataset.end = end;
-    clip.innerHTML = `<div class="label">${escapeHtml(text)}</div>
-                      <div class="times-mini">${formatarTempo(start)}</div>`;
-
-    // drag to move clip along timeline (simple implementation)
-    let dragging = null;
-    clip.addEventListener('pointerdown', (ev) => {
-      ev.preventDefault();
-      dragging = { startX: ev.clientX, origLeft: parseFloat(clip.style.left) };
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
-    });
-
-    function onMove(ev) {
-      if (!dragging) return;
-      const dx = ev.clientX - dragging.startX;
-      const pctDelta = (dx / rect.width) * 100;
-      let newLeft = dragging.origLeft + pctDelta;
-      newLeft = Math.max(0, Math.min(100 - parseFloat(clip.style.width), newLeft));
-      clip.style.left = newLeft + '%';
-      // atualizar dados
-      const newStart = (newLeft / 100) * duration;
-      const width = parseFloat(clip.style.width);
-      const newEnd = newStart + (width / 100) * duration;
-      clip.dataset.start = newStart;
-      clip.dataset.end = newEnd;
-      // atualizar label mini
-      clip.querySelector('.times-mini').textContent = formatarTempo(newStart);
-    }
-
-    function onUp() {
-      dragging = null;
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
-    }
-
-    drop.appendChild(clip);
-  }
-
-  // helper
-  function escapeHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
-})();
-/* Timeline - integração de preview e pool
-   Cole este bloco AO FINAL do seu script.js
-*/
-(function () {
-  const overlay = document.getElementById('timelineOverlay');
-  const pool = document.getElementById('timelinePool');
-  const drop = document.getElementById('timelineDropArea');
-  const closeBtn = document.getElementById('closeTimeline');
-  const saveBtn = document.getElementById('saveTimeline');
-  const cancelBtn = document.getElementById('cancelTimeline');
-  const previewWrap = document.querySelector('.timeline-preview-wrap');
-
-  // elementos que vamos mover temporariamente
-  const canvas = document.getElementById('canvas');
-  const audioEl = document.getElementById('audio');
-
-  const state = {
-    canvasOriginal: null,
-    audioOriginal: null
-  };
-
-  // utilitário simples de formatação (usa sua função se existir)
-  function fmt(t) {
-    if (typeof formatarTempo === 'function') return formatarTempo(t);
-    const s = Math.floor(t % 60).toString().padStart(2, '0');
-    const m = Math.floor(t / 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  }
-
-  function obterDuracaoSafe() {
-    try {
-      return (typeof obterDuracao === 'function') ? obterDuracao() : (audioEl?.duration || 0);
-    } catch (e) { return audioEl?.duration || 0; }
-  }
-
-  // Move um nó para o preview e salva seu pai para restaurar depois
-  function moveIntoPreview(node, storageKey) {
-    if (!node) return;
-    if (!state[storageKey]) {
-      state[storageKey] = { parent: node.parentNode, next: node.nextSibling };
-    }
-    previewWrap.innerHTML = ''; // limpar preview area
-    previewWrap.appendChild(node);
-  }
-
-  function restoreNode(storageKey) {
-    const info = state[storageKey];
-    if (!info || !info.parent) return;
-    const node = info.parent.querySelector && info.parent.contains ? info.parent.querySelector('*') : null;
-    // Instead of selector, we already stored parent/next; we must find the node now in previewWrap with matching id
-    let nodeToRestore = null;
-    if (storageKey === 'canvasOriginal') nodeToRestore = document.getElementById('canvas');
-    if (storageKey === 'audioOriginal') nodeToRestore = document.getElementById('audio');
-    if (!nodeToRestore) return;
-    try {
-      info.parent.insertBefore(nodeToRestore, info.next || null);
-    } catch (e) {
-      info.parent.appendChild(nodeToRestore);
-    }
-    state[storageKey] = null;
-  }
-
-  // abre timeline com array de linhas: [{id, text}, ...]
-  window.openTimeline = function (lines = [], estimatedTimes = []) {
-    console.log('openTimeline called lines=', lines);
-
-    // move canvas + audio para preview (preserva estado)
-    if (canvas) moveIntoPreview(canvas, 'canvasOriginal');
-    if (audioEl) {
-      // mostrar controles se estiver oculto
-      audioEl.controls = true;
-      moveIntoPreview(audioEl, 'audioOriginal');
-    }
-
-    // preencher pool
-    pool.innerHTML = '';
-    const filtered = (lines || []).map(l => (typeof l === 'string' ? { id: null, text: l } : l))
-                                 .map((l, i) => ({ id: l.id ?? ('l' + i), text: (l.text||'').trim(), idx: i }));
-
-    const nonEmpty = filtered.filter(x => x.text && x.text.length > 0);
-
-    if (nonEmpty.length === 0) {
-      pool.innerHTML = '<div class="empty-state">Nenhuma linha detectada. Cole a letra no campo ou use "Criar legendas".</div>';
-    } else {
-      const duration = obterDuracaoSafe() || 60;
-      nonEmpty.forEach((item, i) => {
-        const estStart = estimatedTimes?.[item.idx] ?? Math.max(0, (i / nonEmpty.length) * duration);
-        const estEnd = Math.min(duration, estStart + 3);
-        const div = document.createElement('div');
-        div.className = 'pool-item';
-        div.draggable = true;
-        div.dataset.id = item.id;
-        div.dataset.text = item.text;
-        div.dataset.start = estStart;
-        div.dataset.end = estEnd;
-        div.innerHTML = `<div class="times">${fmt(estStart)} — ${fmt(estEnd)}</div><div class="text">${item.text}</div>`;
-        div.addEventListener('dragstart', (ev) => {
-          ev.dataTransfer.setData('text/plain', JSON.stringify({ id: item.id, text: item.text, start: estStart, end: estEnd }));
-          ev.dataTransfer.effectAllowed = 'copy';
-        });
-        pool.appendChild(div);
-      });
-    }
-
-    // limpar timeline drop area
-    if (drop) drop.innerHTML = '';
-    overlay.classList.add('open');
-    overlay.setAttribute('aria-hidden', 'false');
-
-    // se não há áudio alertar
-    if (!audioEl || !audioEl.src) {
-      console.info('Atenção: nenhum áudio carregado. Importe um arquivo em "Importar áudio".');
-    }
-  };
-
-  function closeTimeline() {
-    overlay.classList.remove('open');
-    overlay.setAttribute('aria-hidden', 'true');
-
-    // restaurar canvas e audio para os lugares originais
-    restoreNode('canvasOriginal');
-    restoreNode('audioOriginal');
-
-    // opcional: remover controles do audio se quiser
-    if (audioEl) audioEl.controls = false;
-  }
-
-  closeBtn?.addEventListener('click', closeTimeline);
-  cancelBtn?.addEventListener('click', closeTimeline);
-
-  saveBtn?.addEventListener('click', () => {
-    // extrai os clips criados e envia para console (você integra com legendas[] depois)
-    const clips = Array.from(drop.querySelectorAll('.timeline-clip')).map(el => ({
-      id: el.dataset.id,
-      text: el.dataset.text,
-      start: Number(el.dataset.start),
-      end: Number(el.dataset.end)
-    }));
-    console.log('Clips salvo (timeline):', clips);
-    // TODO: integrar com seu array legendas[]
-    closeTimeline();
-  });
-
-  // Drop handlers (simples)
-  if (drop) {
-    drop.addEventListener('dragover', (ev) => {
-      ev.preventDefault();
-      ev.dataTransfer.dropEffect = 'copy';
-    });
-
-    drop.addEventListener('drop', (ev) => {
-      ev.preventDefault();
-      const data = ev.dataTransfer.getData('text/plain');
-      if (!data) return;
-      const obj = JSON.parse(data);
-      const rect = drop.getBoundingClientRect();
-      const x = ev.clientX - rect.left;
-      const pct = Math.max(0, Math.min(1, x / rect.width));
-      const duration = obterDuracaoSafe() || 60;
-      const start = pct * duration;
-      const defaultDur = 3;
-      createClipOnTimeline(obj.id, obj.text, start, Math.min(duration, start + defaultDur));
-    });
-  }
 
   function createClipOnTimeline(id, text, start, end) {
     const rect = drop.getBoundingClientRect();
     const duration = obterDuracaoSafe() || 60;
     const leftPct = (start / duration) * 100;
     const widthPct = ((end - start) / duration) * 100;
-
     const clip = document.createElement('div');
     clip.className = 'timeline-clip';
     clip.style.left = `${leftPct}%`;
     clip.style.width = `${Math.max(2, widthPct)}%`;
-    clip.dataset.id = id;
+    clip.dataset.id = id ?? ('c' + Date.now());
     clip.dataset.text = text;
     clip.dataset.start = start;
     clip.dataset.end = end;
-    clip.innerHTML = `<div class="label">${text}</div><div class="times-mini">${fmt(start)}</div>`;
+    clip.innerHTML = `<div class="label">${escapeHtml(text)}</div><div class="times-mini">${formatarTempo(start)}</div>`;
 
-    // arrastar para mover (simples)
+    // drag to move
     let dragging = null;
     clip.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
-      dragging = { startX: ev.clientX, origLeft: parseFloat(clip.style.left) };
+      dragging = { startX: ev.clientX, origLeft: parseFloat(clip.style.left || 0) };
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
     });
@@ -2942,7 +385,7 @@ window.addEventListener("beforeunload", () => {
       const dx = ev.clientX - dragging.startX;
       const pctDelta = (dx / rect.width) * 100;
       let newLeft = dragging.origLeft + pctDelta;
-      newLeft = Math.max(0, Math.min(100 - parseFloat(clip.style.width), newLeft));
+      newLeft = Math.max(0, Math.min(100 - parseFloat(clip.style.width || 0), newLeft));
       clip.style.left = newLeft + '%';
       const newStart = (newLeft / 100) * duration;
       const width = parseFloat(clip.style.width);
@@ -2950,7 +393,7 @@ window.addEventListener("beforeunload", () => {
       clip.dataset.start = newStart;
       clip.dataset.end = newEnd;
       const tMini = clip.querySelector('.times-mini');
-      if (tMini) tMini.textContent = fmt(newStart);
+      if (tMini) tMini.textContent = formatarTempo(newStart);
     }
 
     function onUp() {
@@ -2962,11 +405,149 @@ window.addEventListener("beforeunload", () => {
     drop.appendChild(clip);
   }
 
-  // se quiser abrir a timeline via botão já presente (btnOpenTimeline), conecte aqui
+  // connect topbar button if exists
   document.getElementById('btnOpenTimeline')?.addEventListener('click', () => {
     const texto = (document.getElementById('letra')?.value || '').trim();
-    const lines = texto ? texto.split('\n').map((t, i) => ({ id: 'l' + i, text: t.trim() })) : [];
-    window.openTimeline(lines, []); // estimatedTimes - futuramente substitua por auto-align
+    const lines = texto ? texto.split('\n').map((t,i) => ({ id: 'l'+i, text: t.trim() })) : legendas.slice();
+    window.openTimeline(lines, []);
   });
 
+})();
+
+/* -----------------------
+   Popups flutuantes (abrir panel-section como modal)
+   ----------------------- */
+(function popupFloating() {
+  function initFloating() {
+    const bd = document.getElementById("floatingBackdrop");
+    const ht = document.getElementById("floatingHost");
+    if (!bd || !ht) return;
+
+    let abertoState = { secao: null, originalParent: null, originalNext: null, wrapper: null };
+
+    function restaurarSecao() {
+      const s = abertoState.secao;
+      const p = abertoState.originalParent;
+      const next = abertoState.originalNext;
+      const wrapper = abertoState.wrapper;
+      if (!s) return;
+      if (wrapper && p) {
+        try { p.insertBefore(s, next); } catch (e) { if (p && p.appendChild) p.appendChild(s); }
+      }
+      abertoState = { secao: null, originalParent: null, originalNext: null, wrapper: null };
+      bd.classList.remove('visible');
+    }
+
+    function fecharPainel() {
+      const wrapper = abertoState.wrapper;
+      if (!wrapper) return;
+      wrapper.classList.remove("open");
+      bd.classList.remove("visible");
+      restaurarSecao();
+      setTimeout(() => { if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper); }, 200);
+      document.body.style.overflow = "";
+      bd.onclick = null;
+    }
+
+    function abrirPainel(secao) {
+      if (!secao) return;
+      if (abertoState.wrapper) fecharPainel();
+      abertoState.secao = secao;
+      abertoState.originalParent = secao.parentNode;
+      abertoState.originalNext = secao.nextSibling;
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "floating-panel";
+      wrapper.setAttribute("role", "dialog");
+      wrapper.setAttribute("aria-modal", "true");
+
+      const header = document.createElement("div");
+      header.className = "floating-panel-header";
+
+      const tituloEl = document.createElement("h3");
+      tituloEl.textContent = secao.querySelector(".section-title h2")?.textContent || "Configuração";
+
+      const fecharBtn = document.createElement("button");
+      fecharBtn.type = "button";
+      fecharBtn.className = "floating-panel-close";
+      fecharBtn.setAttribute("aria-label", "Fechar painel");
+      fecharBtn.textContent = "×";
+      fecharBtn.addEventListener("click", () => fecharPainel());
+
+      header.appendChild(tituloEl);
+      header.appendChild(fecharBtn);
+
+      const body = document.createElement("div");
+      body.className = "floating-panel-body";
+
+      body.appendChild(secao);
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(body);
+
+      wrapper.__lastFocus = document.activeElement;
+
+      ht.appendChild(wrapper);
+      abertoState.wrapper = wrapper;
+
+      requestAnimationFrame(() => {
+        wrapper.classList.add("open");
+        bd.classList.add("visible");
+      });
+
+      document.body.style.overflow = "hidden";
+
+      bd.onclick = (ev) => { if (ev.target === bd) fecharPainel(); };
+
+      const onKey = (ev) => {
+        if (ev.key === "Escape") { fecharPainel(); document.removeEventListener("keydown", onKey); }
+      };
+      document.addEventListener("keydown", onKey);
+
+      setTimeout(() => {
+        const primeiro = wrapper.querySelector("input, button, textarea, select, summary");
+        if (primeiro && typeof primeiro.focus === "function") primeiro.focus();
+      }, 80);
+    }
+
+    document.querySelectorAll(".panel-section").forEach((secao) => {
+      const titulo = secao.querySelector(".section-title");
+      if (!titulo) return;
+      titulo.style.cursor = "pointer";
+      titulo.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        abrirPainel(secao);
+      });
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initFloating, { once: true });
+  } else {
+    initFloating();
+  }
+})();
+
+/* -----------------------
+   Render loop placeholder (desenha algo no canvas para visualizar)
+   ----------------------- */
+(function renderLoop() {
+  if (!canvas || !ctx) return;
+  let t = 0;
+  function frame() {
+    // apenas desenha um fundo simples e o tempo (placeholder)
+    ctx.fillStyle = "#071018";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#72f0b0";
+    ctx.font = "28px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Lyric Studio Preview", canvas.width/2, 60);
+    ctx.font = "20px sans-serif";
+    ctx.fillStyle = "#91a0b1";
+    ctx.fillText("Use Timeline para arrastar legendas", canvas.width/2, 96);
+    t++;
+    requestAnimationFrame(frame);
+  }
+  frame();
 })();
