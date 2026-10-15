@@ -382,10 +382,18 @@ $("marcarInicio").addEventListener("click", () => {
     return;
   }
 
-  legenda.inicio = Math.max(0, audio.currentTime || 0);
+  const antigoInicio = Number(legenda.inicio) || 0;
+  const novoInicio = Math.max(0, audio.currentTime || 0);
+  const delta = novoInicio - antigoInicio;
+
+  legenda.inicio = novoInicio;
 
   if (legenda.fim <= legenda.inicio) {
     legenda.fim = legenda.inicio + 1;
+  }
+
+  if (delta !== 0) {
+    rippleAdjust(indiceSelecionado, delta);
   }
 
   desenharLista();
@@ -402,6 +410,7 @@ $("marcarTempo").addEventListener("click", () => {
     return;
   }
 
+  const antigoFim = Number(legenda.fim) || 0;
   const tempoAtual = Math.max(0, audio.currentTime || 0);
 
   if (tempoAtual <= legenda.inicio) {
@@ -409,7 +418,14 @@ $("marcarTempo").addEventListener("click", () => {
     return;
   }
 
+  const delta = tempoAtual - antigoFim;
+
   legenda.fim = tempoAtual;
+
+  if (delta !== 0) {
+    rippleAdjust(indiceSelecionado, delta);
+  }
+
   desenharLista();
   renderizar();
   mensagem("Fim da legenda atualizado.");
