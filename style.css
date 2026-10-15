@@ -1852,3 +1852,102 @@ progress {
   .timeline-handle { width: 12px; height: 18px; }
   .timeline-controls .time-label { font-size: 12px; min-width: 52px; }
 }
+/* Timeline overlay */
+.timeline-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,10,0.65);
+  z-index: 2000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.timeline-overlay.open { display: flex; }
+
+.timeline-panel {
+  width: min(1100px, 96vw);
+  height: min(820px, 92vh);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.floating-close { position: absolute; right: 12px; top: 12px; z-index: 10; }
+
+.timeline-layout {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  padding: 14px;
+}
+
+.timeline-pool {
+  width: 320px;
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 10px;
+  overflow: auto;
+}
+
+.pool-list .pool-item {
+  background: #0a1217;
+  border: 1px solid var(--border);
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pool-item .times { color: var(--muted); font-size: 12px; }
+
+.timeline-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timeline-preview-wrap {
+  flex: 1;
+  background: #070b10;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-droparea {
+  height: 160px;
+  background: #0b1116;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+/* clip visual on timeline */
+.timeline-clip {
+  position: absolute;
+  top: 20px;
+  height: 60px;
+  background: linear-gradient(90deg,#2f80ed,#72f0b0);
+  border-radius: 6px;
+  padding: 6px;
+  color: white;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+}
+.timeline-clip .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+
+.timeline-footer { padding: 12px; border-top: 1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
