@@ -2602,3 +2602,148 @@ window.addEventListener("beforeunload", () => {
     configurarControlesAnimacao();
   }
 })();
+// timeline feature (integrar ao final do script.js)
+(function () {
+  const overlay = document.getElementById('timelineOverlay');
+  const pool = document.getElementById('timelinePool');
+  const drop = document.getElementById('timelineDropArea');
+  const closeBtn = document.getElementById('closeTimeline');
+  const saveBtn = document.getElementById('saveTimeline');
+  const cancelBtn = document.getElementById('cancelTimeline');
+
+  // abre overlay com items gerados a partir da letra
+  window.openTimeline = function (linesArray, estimatedTimes = []) {
+    // linesArray = [{id, text}] ou strings
+    pool.innerHTML = '';
+    const duration = obterDuracao() || 60; // usa sua função de obter duracao (audio.duration)
+
+    linesArray.forEach((line, i) => {
+      const id = line.id ?? `l${i}`;
+      const text = line.text ?? line;
+      const start = estimatedTimes[i] ?? Math.max(0, (i / linesArray.length) * duration);
+      const end = estimatedTimes[i] ? (estimatedTimes[i] + (line.defaultDur || 3)) : Math.min(duration, start + 3);
+
+      const item = document.createElement('div');
+      item.className = 'pool-item';
+      item.draggable = true;
+      item.dataset.id = id;
+      item.dataset.text = text;
+      item.dataset.start = start;
+      item.dataset.end = end;
+
+      item.innerHTML = `<div class="times">${formatarTempo(start)} — ${formatarTempo(end)}</div>
+                        <div class="text">${escapeHtml(text)}</div>`;
+
+      item.addEventListener('dragstart', (ev) => {
+        ev.dataTransfer.setData('text/plain', JSON.stringify({ id, text, start, end }));
+        ev.dataTransfer.effectAllowed = 'copy';
+      });
+
+      pool.appendChild(item);
+    });
+
+    // limpa timeline visual
+    drop.innerHTML = '';
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  };
+
+  closeBtn?.addEventListener('click', closeTimeline);
+  cancelBtn?.addEventListener('click', closeTimeline);
+  saveBtn?.addEventListener('click', () => {
+    // opcional: colar clips no seu modelo de legendas (legendas[])
+    // percorre drop.children para extrair start/end/text e atualizar dados
+    const clips = Array.from(drop.querySelectorAll('.timeline-clip')).map(el => ({
+      id: el.dataset.id,
+      text: el.dataset.text,
+      start: Number(el.dataset.start),
+      end: Number(el.dataset.end)
+    }));
+    // ex: sincronizar com seu array legendas (implemente conforme seu modelo)
+    // aplicarClipsParaLegendas(clips);
+    closeTimeline();
+  });
+
+  function closeTimeline() {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  // drop handlers
+  drop.addEventListener('dragover', (ev) => {
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'copy';
+  });
+
+  drop.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    const data = ev.dataTransfer.getData('text/plain');
+    if (!data) return;
+    const obj = JSON.parse(data);
+    const rect = drop.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, x / rect.width));
+    const duration = obterDuracao() || 60;
+    const start = pct * duration;
+    const defaultDur = 3; // padrão 3s, você pode ajustar
+    createClipOnTimeline(obj.id, obj.text, start, Math.min(duration, start + defaultDur));
+  });
+
+  function createClipOnTimeline(id, text, start, end) {
+    const rect = drop.getBoundingClientRect();
+    const duration = obterDuracao() || 60;
+    const leftPct = (start / duration) * 100;
+    const widthPct = ((end - start) / duration) * 100;
+
+    const clip = document.createElement('div');
+    clip.className = 'timeline-clip';
+    clip.style.left = `${leftPct}%`;
+    clip.style.width = `${Math.max(2, widthPct)}%`; // min width
+    clip.dataset.id = id;
+    clip.dataset.text = text;
+    clip.dataset.start = start;
+    clip.dataset.end = end;
+    clip.innerHTML = `<div class="label">${escapeHtml(text)}</div>
+                      <div class="times-mini">${formatarTempo(start)}</div>`;
+
+    // drag to move clip along timeline (simple implementation)
+    let dragging = null;
+    clip.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      dragging = { startX: ev.clientX, origLeft: parseFloat(clip.style.left) };
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+
+    function onMove(ev) {
+      if (!dragging) return;
+      const dx = ev.clientX - dragging.startX;
+      const pctDelta = (dx / rect.width) * 100;
+      let newLeft = dragging.origLeft + pctDelta;
+      newLeft = Math.max(0, Math.min(100 - parseFloat(clip.style.width), newLeft));
+      clip.style.left = newLeft + '%';
+      // atualizar dados
+      const newStart = (newLeft / 100) * duration;
+      const width = parseFloat(clip.style.width);
+      const newEnd = newStart + (width / 100) * duration;
+      clip.dataset.start = newStart;
+      clip.dataset.end = newEnd;
+      // atualizar label mini
+      clip.querySelector('.times-mini').textContent = formatarTempo(newStart);
+    }
+
+    function onUp() {
+      dragging = null;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+    }
+
+    drop.appendChild(clip);
+  }
+
+  // helper
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+})();
